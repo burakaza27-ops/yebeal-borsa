@@ -125,7 +125,9 @@ export default function AuthPortal({ onLogin, lang = 'en', showToast }) {
 
       <div className="auth-card fade-in">
         <div className="auth-logo">
-          <div className="auth-logo-icon">🐑</div>
+          <div className="auth-logo-icon">
+            <img src="/logo.svg" alt="Yebeal Borsa" style={{ width: '100%', height: '100%', borderRadius: 'inherit' }} />
+          </div>
           <h1>{lang === 'am' ? 'የበአል ቦርሳ' : 'Yebeal Borsa'}</h1>
           <p>{t.livestockSavingsMarket}</p>
         </div>

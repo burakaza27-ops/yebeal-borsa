@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a2a1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d1a0d;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#F5C842;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D4A017;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2ECC71;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1A9D53;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="coinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFE066;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FFD700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C8A200;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="248" fill="url(#bgGrad)" stroke="url(#goldGrad)" stroke-width="3"/>
+  
+  <!-- Inner Ring -->
+  <circle cx="256" cy="256" r="228" fill="none" stroke="url(#goldGrad)" stroke-width="1" opacity="0.3"/>
+
+  <!-- Stylized Ram Head - Geometric/Minimal -->
+  <g transform="translate(256, 230)" filter="url(#shadow)">
+    <!-- Ram Face - Shield Shape -->
+    <path d="M0,-85 C35,-85 65,-65 75,-35 C85,-5 80,30 65,55 C50,80 30,100 0,110 C-30,100 -50,80 -65,55 C-80,30 -85,-5 -75,-35 C-65,-65 -35,-85 0,-85 Z" 
+          fill="url(#goldGrad)" opacity="0.95"/>
+    
+    <!-- Left Horn - Elegant Spiral -->
+    <path d="M-55,-55 C-95,-80 -120,-55 -115,-20 C-110,15 -90,35 -65,30 C-55,28 -50,15 -55,5" 
+          fill="none" stroke="url(#goldGrad)" stroke-width="14" stroke-linecap="round" opacity="0.9"/>
+    
+    <!-- Right Horn - Elegant Spiral -->
+    <path d="M55,-55 C95,-80 120,-55 115,-20 C110,15 90,35 65,30 C55,28 50,15 55,5" 
+          fill="none" stroke="url(#goldGrad)" stroke-width="14" stroke-linecap="round" opacity="0.9"/>
+
+    <!-- Eyes -->
+    <ellipse cx="-22" cy="-15" rx="7" ry="8" fill="#1a2a1a"/>
+    <ellipse cx="22" cy="-15" rx="7" ry="8" fill="#1a2a1a"/>
+    
+    <!-- Eye Shine -->
+    <circle cx="-19" cy="-18" r="2.5" fill="#fff" opacity="0.7"/>
+    <circle cx="25" cy="-18" r="2.5" fill="#fff" opacity="0.7"/>
+    
+    <!-- Nose -->
+    <ellipse cx="0" cy="20" rx="12" ry="8" fill="#1a2a1a" opacity="0.5"/>
+    <circle cx="-5" cy="19" r="3" fill="#1a2a1a" opacity="0.7"/>
+    <circle cx="5" cy="19" r="3" fill="#1a2a1a" opacity="0.7"/>
+    
+    <!-- Mouth line -->
+    <path d="M-8,32 Q0,38 8,32" fill="none" stroke="#1a2a1a" stroke-width="2" opacity="0.4"/>
+  </g>
+
+  <!-- Coin Element - Bottom Right -->
+  <g transform="translate(350, 350)" filter="url(#glow)">
+    <circle cx="0" cy="0" r="42" fill="url(#coinGrad)" stroke="#C8A200" stroke-width="2"/>
+    <circle cx="0" cy="0" r="34" fill="none" stroke="#B8920A" stroke-width="1.5" opacity="0.5"/>
+    <!-- ETB Symbol (Ethiopian Birr) -->
+    <text x="0" y="6" text-anchor="middle" font-family="serif" font-weight="bold" font-size="32" fill="#7A5A00">ብ</text>
+  </g>
+
+  <!-- Decorative dots around the ring -->
+  <circle cx="256" cy="20" r="4" fill="url(#goldGrad)" opacity="0.6"/>
+  <circle cx="256" cy="492" r="4" fill="url(#goldGrad)" opacity="0.6"/>
+  <circle cx="20" cy="256" r="4" fill="url(#goldGrad)" opacity="0.6"/>
+  <circle cx="492" cy="256" r="4" fill="url(#goldGrad)" opacity="0.6"/>
+  
+  <!-- Corner accents -->
+  <circle cx="75" cy="75" r="3" fill="url(#goldGrad)" opacity="0.4"/>
+  <circle cx="437" cy="75" r="3" fill="url(#goldGrad)" opacity="0.4"/>
+  <circle cx="75" cy="437" r="3" fill="url(#goldGrad)" opacity="0.4"/>
+  <circle cx="437" cy="437" r="3" fill="url(#goldGrad)" opacity="0.4"/>
+</svg>

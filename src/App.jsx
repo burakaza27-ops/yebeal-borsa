@@ -330,7 +330,9 @@ function App() {
         {/* Sidebar */}
         <aside className={`sidebar ${showMobileSidebar ? 'sidebar-mobile-open' : ''}`}>
           <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">🐑</div>
+            <div className="sidebar-logo-icon">
+              <img src="/logo.svg" alt="Yebeal Borsa" style={{ width: '100%', height: '100%', borderRadius: 'inherit' }} />
+            </div>
             <h1>
               የበዓል ቦርሳ
               <small>Yebeal Borsa</small>
