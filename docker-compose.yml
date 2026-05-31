@@ -1,0 +1,85 @@
+# ============================================
+# YEBEAL BORSA — Docker Compose Configuration
+# ============================================
+
+version: '3.8'
+
+services:
+  # ─── Database ─────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: yebeal_borsa_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: yebeal_borsa
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d yebeal_borsa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis Cache ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: yebeal_borsa_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yebeal_borsa_backend
+    restart: always
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/yebeal_borsa?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "yebeal-borsa-unbreakable-secret-key-for-local-testing-2026"
+      JWT_EXPIRES_IN: "7d"
+      PORT: 3001
+      NODE_ENV: development
+      FRONTEND_URL: "http://localhost:5173"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Run Prisma migrations and seed the database on start, then start Express
+    command: >
+      sh -c "npx prisma db push && node prisma/seed.js && npm run dev"
+
+  # ─── Frontend ─────────────────────────────────────
+  frontend:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: yebeal_borsa_frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

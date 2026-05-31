@@ -1,0 +1,487 @@
+// Prisma schema for Yebeal Borsa
+// This defines ALL tables in the PostgreSQL database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  SELLER
+  FATTENER
+  TRADER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum KycLevel {
+  BASIC
+  STANDARD
+  VERIFIED
+}
+
+enum Tier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+enum TransactionType {
+  DEPOSIT
+  PURCHASE
+  TRANSFER
+  WITHDRAWAL
+}
+
+enum OrderStatus {
+  PROCESSING
+  VET_INSPECTION
+  IN_TRANSIT
+  DELIVERED
+  PICKUP_READY
+  CANCELLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WithdrawalMethod {
+  TELEBIRR
+  CBE_BIRR
+  BANK_TRANSFER
+}
+
+enum AnimalType {
+  HEN
+  SHEEP
+  GOAT
+  CATTLE
+  KIRCHA
+}
+
+enum NotificationType {
+  DEPOSIT
+  HOLIDAY
+  MARKETPLACE
+  DELIVERY
+  SYSTEM
+  PROMOTION
+  ORDER
+}
+
+// ─── Users ────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(cuid())
+  faydaId         String?  @unique
+  phone           String   @unique
+  fullName        String
+  fullNameAmharic String?
+  email           String?  @unique
+  passwordHash    String
+  gender          String?
+  region          String?
+  city            String?
+  address         String?
+  role            Role     @default(CUSTOMER)
+  tier            Tier     @default(BRONZE)
+  kycLevel        KycLevel @default(BASIC)
+  totalDeposits   Float    @default(0)
+  totalSpent      Float    @default(0)
+  avatar          String?
+  language        String   @default("en")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Notification preferences (stored as JSON)
+  notifDeposits    Boolean @default(true)
+  notifHolidays    Boolean @default(true)
+  notifDelivery    Boolean @default(true)
+  notifSystem      Boolean @default(true)
+  notifPromotions  Boolean @default(true)
+
+  // Relations
+  wallets              Wallet[]
+  customerHolidays     CustomerHoliday[]
+  orders               Order[]
+  notifications        Notification[]
+  withdrawalRequests   WithdrawalRequest[]
+  auditLogs            AuditLog[]
+  favorites            Favorite[]
+  animalListings       Animal[]            @relation("SellerAnimals")
+  kirchaMembers        KirchaMember[]
+  supportTickets       SupportTicket[]
+  refundRequests       RefundRequest[]
+
+  @@map("users")
+}
+
+// ─── Wallets ──────────────────────────────────────────
+
+model Wallet {
+  id               String   @id @default(cuid())
+  userId           String
+  label            String
+  balance          Float    @default(0)
+  isFamily         Boolean  @default(false)
+  familyMemberName String?
+  spendingLimit    Float?
+  lockedBalance    Float    @default(0)
+  lockedUntil      DateTime?
+  platformCredits  Float    @default(0)
+  holidayId        String?
+  createdAt        DateTime @default(now())
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holiday      Holiday?            @relation(fields: [holidayId], references: [id])
+  transactions Transaction[]
+  withdrawals  WithdrawalRequest[]
+
+  @@map("wallets")
+}
+
+// ─── Holidays ─────────────────────────────────────────
+
+model Holiday {
+  id             String   @id @default(cuid())
+  name           String
+  nameEn         String
+  deadline       DateTime
+  minimumDeposit Float
+  animalTypes    String[] // Stored as array of strings
+  isActive       Boolean  @default(true)
+  color          String?
+  icon           String?
+  description    String?
+
+  customerHolidays CustomerHoliday[]
+  wallets          Wallet[]
+
+  @@map("holidays")
+}
+
+// ─── Customer Holiday Goals ───────────────────────────
+
+model CustomerHoliday {
+  id               String   @id @default(cuid())
+  userId           String
+  holidayId        String
+  targetAmount     Float
+  currentAmount    Float    @default(0)
+  animalPreference String?
+  status           String   @default("active") // active, completed, cancelled
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holiday Holiday @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, holidayId])
+  @@map("customer_holidays")
+}
+
+// ─── Animals (Marketplace Listings) ───────────────────
+
+model Animal {
+  id                 String     @id @default(cuid())
+  type               AnimalType
+  breed              String
+  weight             Float
+  age                String
+  price              Float
+  locationArea       String
+  locationLat        Float?
+  locationLng        Float?
+  sellerId           String
+  sellerName         String
+  sellerRating       Float      @default(0)
+  description        String?
+  healthCertificate  Boolean    @default(false)
+  availableDate      DateTime?
+  isActive           Boolean    @default(true)
+  isApproved         Boolean    @default(false)
+  images             String[]   // URLs to images
+  reservedUntil      DateTime?
+  reservedBy         String?
+  gender             String?
+  healthStatus       String?
+  vaccinationStatus  Boolean    @default(false)
+  insuranceEligible  Boolean    @default(false)
+  insurancePremium   Float      @default(0)
+  createdAt          DateTime   @default(now())
+
+  seller     User       @relation("SellerAnimals", fields: [sellerId], references: [id], onDelete: Cascade)
+  orders     Order[]
+  favorites  Favorite[]
+  kirchaPool KirchaPool?
+
+  @@map("animals")
+}
+
+// ─── Favorites ────────────────────────────────────────
+
+model Favorite {
+  id       String @id @default(cuid())
+  userId   String
+  animalId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  animal Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, animalId])
+  @@map("favorites")
+}
+
+// ─── Transactions ─────────────────────────────────────
+
+model Transaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  amount      Float
+  type        TransactionType
+  description String?
+  method      String?
+  holidayId   String?
+  bonusAmount Float           @default(0)
+  lockedUntil DateTime?
+  balanceType String          @default("AVAILABLE") // AVAILABLE, LOCKED, CREDITS
+  createdAt   DateTime        @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+// ─── Orders ───────────────────────────────────────────
+
+model Order {
+  id                 String         @id @default(cuid())
+  userId             String
+  animalId           String
+  animalType         String
+  animalBreed        String
+  totalPrice         Float
+  deliveryOption     String         // 'delivery' or 'pickup'
+  deliveryZone       String?
+  deliveryTimeWindow String?
+  paymentMethod      String         @default("wallet")
+  deliveryStatus     OrderStatus    @default(PROCESSING)
+  deliveryDate       DateTime?
+  deliveryAddress    String?
+  insuranceAdded     Boolean        @default(false)
+  insurancePremium   Float          @default(0)
+  deliveryFee        Float          @default(0)
+  animalPrice        Float          @default(0)
+  cancelledAt        DateTime?
+  cancelReason       String?
+  isPaidToSeller     Boolean        @default(false)
+  payoutId           String?
+  rating             Int?           // 1-5 star rating, set once after delivery
+  createdAt          DateTime       @default(now())
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  animal         Animal          @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  payout         Payout?         @relation(fields: [payoutId], references: [id])
+  deliverySteps  DeliveryStep[]
+  refundRequests RefundRequest[]
+  supportTickets SupportTicket[]
+
+  @@map("orders")
+}
+
+model DeliveryStep {
+  id      String   @id @default(cuid())
+  orderId String
+  label   String
+  done    Boolean  @default(false)
+  time    String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_steps")
+}
+
+// ─── Withdrawal Requests ──────────────────────────────
+
+model WithdrawalRequest {
+  id                String           @id @default(cuid())
+  userId            String
+  walletId          String
+  amount            Float
+  reason            String?
+  withdrawalMethod  WithdrawalMethod
+  accountNumber     String
+  accountName       String?
+  status            WithdrawalStatus @default(PENDING)
+  adminNote         String?
+  createdAt         DateTime         @default(now())
+  processedAt       DateTime?
+
+  // Frozen penalty breakdown — calculated once at request time
+  availableDeduction Float           @default(0)
+  lockedDeduction    Float           @default(0)
+  penaltyAmount      Float           @default(0)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("withdrawal_requests")
+}
+
+// ─── Notifications ────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String?
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ─── Audit Log ────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String
+  target    String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+// ─── Delivery Zones ───────────────────────────────────
+
+model DeliveryZone {
+  id   String @id @default(cuid())
+  name String @unique
+  lat  Float
+  lng  Float
+
+  @@map("delivery_zones")
+}
+
+// ─── Kircha Matchmaking Pools ─────────────────────────
+
+model KirchaPool {
+  id          String         @id @default(cuid())
+  animalId    String         @unique
+  totalShares Int            @default(5)
+  status      String         @default("OPEN") // OPEN, FILLED, CANCELLED
+  createdAt   DateTime       @default(now())
+
+  animal      Animal         @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  members     KirchaMember[]
+
+  @@map("kircha_pools")
+}
+
+model KirchaMember {
+  id                 String   @id @default(cuid())
+  poolId             String
+  userId             String
+  walletId           String?
+  shares             Int      @default(1)
+  pricePaid          Float
+  deliveryOption     String
+  deliveryZone       String?
+  deliveryTimeWindow String?
+  paymentMethod      String   @default("wallet")
+  createdAt          DateTime @default(now())
+
+  pool               KirchaPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, userId])
+  @@map("kircha_members")
+}
+
+// ─── Missing Models from Spec ─────────────────────────
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  animalType String
+  breed      String
+  price      Float
+  updatedBy  String
+  createdAt  DateTime @default(now())
+
+  @@map("price_histories")
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  orderId   String?  // Required for INSURANCE_CLAIM tickets
+  title     String
+  message   String
+  status    String   @default("OPEN") // OPEN, RESOLVED, CLOSED
+  category  String   @default("SUPPORT") // SUPPORT, INSURANCE_CLAIM
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@map("support_tickets")
+}
+
+model MarketPrice {
+  id         String   @id @default(cuid())
+  animalType String
+  breed      String
+  grade      String?
+  price      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([animalType, breed])
+  @@map("market_prices")
+}
+
+model RefundRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  orderId     String
+  amount      Float
+  reason      String
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNote   String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("refund_requests")
+}
+
+model Payout {
+  id        String   @id @default(cuid())
+  sellerId  String
+  amount    Float
+  status    String   @default("PAID")
+  createdAt DateTime @default(now())
+
+  orders Order[]
+
+  @@map("payouts")
+}
