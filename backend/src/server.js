@@ -30,16 +30,18 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 // Validate required environment variables at startup
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
-for (const envVar of REQUIRED_ENV) {
-  if (!process.env[envVar]) {
-    logger.error(`❌ CRITICAL: Missing mandatory environment variable: ${envVar}`);
+const missingEnv = REQUIRED_ENV.filter(envVar => !process.env[envVar]);
+const insecureJwt = process.env.NODE_ENV === 'production' && process.env.JWT_SECRET && process.env.JWT_SECRET.includes('change-this');
+
+if (!process.env.VERCEL) {
+  if (missingEnv.length > 0) {
+    logger.error(`❌ CRITICAL: Missing mandatory environment variable(s): ${missingEnv.join(', ')}`);
     process.exit(1);
   }
-}
-
-if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.includes('change-this')) {
-  logger.error('❌ CRITICAL: Insecure default JWT_SECRET detected in production environment!');
-  process.exit(1);
+  if (insecureJwt) {
+    logger.error('❌ CRITICAL: Insecure default JWT_SECRET detected in production environment!');
+    process.exit(1);
+  }
 }
 
 const app = express();
@@ -47,6 +49,21 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
 // ─── Global Middleware ─────────────────────────────
+
+// Early environment variable configuration check shield
+app.use((req, res, next) => {
+  if (missingEnv.length > 0) {
+    return res.status(500).json({
+      error: `Missing environment variable(s): ${missingEnv.join(', ')}. Please configure them in your environment settings.`
+    });
+  }
+  if (insecureJwt) {
+    return res.status(500).json({
+      error: 'Insecure default JWT_SECRET detected in production. Please update it in your environment settings.'
+    });
+  }
+  next();
+});
 
 // Request logging via Winston
 app.use(httpLogger);
