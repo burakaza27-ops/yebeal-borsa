@@ -925,11 +925,27 @@ async function apiFetch(path, method = 'GET', body = null) {
   }
   try {
     const res = await fetch(`${API_BASE}${path}`, config);
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Network request failed');
+    
+    // Check if the response is JSON
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Network request failed');
+      }
+      return data;
+    } else {
+      // The response is plain text or HTML (e.g. Vercel serverless function crash or gateway error)
+      const text = await res.text();
+      console.error(`Non-JSON response from API [${res.status}]:`, text);
+      
+      if (res.status === 500 || res.status === 502 || res.status === 504) {
+        throw new Error(
+          `Backend connection failed (${res.status}). If you are running on Vercel, please make sure your DATABASE_URL and JWT_SECRET environment variables are correctly configured in your Vercel Dashboard project settings.`
+        );
+      }
+      throw new Error(text.slice(0, 150) || 'Server returned an invalid non-JSON response.');
     }
-    return data;
   } catch (err) {
     console.error(`API Fetch Error [${method} ${path}]:`, err);
     throw err;
