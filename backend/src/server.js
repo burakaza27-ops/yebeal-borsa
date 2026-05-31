@@ -151,6 +151,28 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Database connectivity diagnostic check
+app.get('/api/db-test', async (req, res) => {
+  try {
+    const userCount = await req.prisma.user.count();
+    res.json({
+      status: 'ok',
+      message: 'Prisma successfully queried the live database!',
+      totalUsers: userCount,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error('❌ Diagnostic db-test failed:', err);
+    res.status(500).json({
+      status: 'error',
+      message: 'Database query failed.',
+      errorMessage: err.message,
+      errorStack: err.stack,
+      hint: 'Please check your DATABASE_URL in Vercel project environment variables.'
+    });
+  }
+});
+
 // ─── Error Handling ────────────────────────────────
 
 app.use(errorHandler);
