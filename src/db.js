@@ -905,7 +905,7 @@ export const TRANSLATIONS = {
 
 // ---- DB Engine ----
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_BASE || (window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api');
 
 async function apiFetch(path, method = 'GET', body = null) {
   const token = localStorage.getItem('yebeal_borsa_token');

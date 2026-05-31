@@ -161,7 +161,11 @@ async function start() {
   }
 }
 
-start();
+if (!process.env.VERCEL) {
+  start();
+}
+
+export default app;
 
 // Handle uncaught exceptions and unhandled rejections cleanly
 process.on('uncaughtException', (err) => {
