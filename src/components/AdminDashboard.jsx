@@ -193,6 +193,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast }) {
   };
 
   const translateAuditDetails = (details) => {
+    if (!details) return '';
     if (lang !== 'am') return details;
     if (details.includes('Approved withdrawal of')) {
       return details.replace('Approved withdrawal of', 'የገንዘብ ማውጣት ተፈቅዷል:')
@@ -250,7 +251,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast }) {
   const activeListings = animals.filter(a => a.isActive && a.isApproved).length;
   const pendingApprovals = animals.filter(a => a.isActive && !a.isApproved).length;
   const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending').length;
-  const filteredCustomers = customers.filter(c => !searchCustomer || c.fullName.toLowerCase().includes(searchCustomer.toLowerCase()) || c.phone.includes(searchCustomer) || c.faydaId.toLowerCase().includes(searchCustomer.toLowerCase()));
+  const filteredCustomers = customers.filter(c => !searchCustomer || c.fullName.toLowerCase().includes(searchCustomer.toLowerCase()) || c.phone.includes(searchCustomer) || (c.faydaId && c.faydaId.toLowerCase().includes(searchCustomer.toLowerCase())));
 
   const handleApprove = async (id) => {
     try {
