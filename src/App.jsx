@@ -463,10 +463,10 @@ function App() {
           {role === 'customer' && page === 'marketplace' && <Marketplace onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
           {role === 'customer' && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
           
-          {role === 'seller' && (user?.role === 'seller' || user?.role === 'admin') && page === 'seller' && <SellerDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
-          {role === 'seller' && (user?.role === 'seller' || user?.role === 'admin') && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'seller' && (user?.role?.toLowerCase() === 'seller' || user?.role?.toLowerCase() === 'admin') && page === 'seller' && <SellerDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'seller' && (user?.role?.toLowerCase() === 'seller' || user?.role?.toLowerCase() === 'admin') && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
           
-          {role === 'admin' && user?.role === 'admin' && <AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'admin' && user?.role?.toLowerCase() === 'admin' && <AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
         </main>
       </div>
 
