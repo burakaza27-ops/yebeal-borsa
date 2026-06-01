@@ -13,15 +13,20 @@ export function authenticate(req, res, next) {
   try {
     let token = null;
 
-    // Check for cookie token first
-    if (req.cookies && req.cookies.token) {
+    // Prioritize Authorization header (Bearer token) for reliable API/SPA operation
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    // Fallback to cookie token if no header is present
+    if (!token && req.cookies && req.cookies.token) {
       token = req.cookies.token;
-    } else {
-      // Fallback to Bearer token header
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        token = authHeader.split(' ')[1];
-      }
+    }
+
+    // Ensure we ignore invalid/empty string tokens (e.g. from cleared cookies)
+    if (token === 'undefined' || token === 'null' || (typeof token === 'string' && token.trim() === '')) {
+      token = null;
     }
 
     if (!token) {
@@ -84,13 +89,21 @@ export function requireSeller(req, res, next) {
 export function optionalAuth(req, res, next) {
   try {
     let token = null;
-    if (req.cookies && req.cookies.token) {
+
+    // Prioritize Authorization header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    // Fallback to cookie token
+    if (!token && req.cookies && req.cookies.token) {
       token = req.cookies.token;
-    } else {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        token = authHeader.split(' ')[1];
-      }
+    }
+
+    // Ensure we ignore invalid/empty string tokens
+    if (token === 'undefined' || token === 'null' || (typeof token === 'string' && token.trim() === '')) {
+      token = null;
     }
 
     if (token) {
