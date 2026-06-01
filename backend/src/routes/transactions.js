@@ -60,10 +60,14 @@ router.get('/', async (req, res, next) => {
 // ─── POST /api/transactions/deposit ──────────────
 router.post('/deposit', async (req, res, next) => {
   try {
-    const { walletId, amount, description, method, holidayId } = req.body;
+    const { walletId, amount, description, method, holidayId, idempotencyKey } = req.body;
 
     if (!walletId || amount === undefined || amount === null) {
       return res.status(400).json({ error: 'Valid wallet ID and amount are required.' });
+    }
+
+    if (!idempotencyKey) {
+      return res.status(400).json({ error: 'Idempotency key is required to prevent double-spending.' });
     }
 
     const validatedAmount = parseAndValidateFloat(amount, 'amount', true, 0.01);
@@ -86,6 +90,27 @@ router.post('/deposit', async (req, res, next) => {
     }
 
     const result = await req.prisma.$transaction(async (tx) => {
+      // 0. Idempotency Check
+      const existingKey = await tx.idempotencyKey.findUnique({
+        where: { key: idempotencyKey }
+      });
+      if (existingKey) {
+        throw new Error('Idempotency conflict: This transaction was already processed.');
+      }
+
+      // Record idempotency key (expires in 24 hours)
+      await tx.idempotencyKey.create({
+        data: {
+          key: idempotencyKey,
+          userId: req.user.id,
+          action: 'DEPOSIT',
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
+      });
+
+      // 0.5 Pessimistic lock the wallet row
+      await tx.$executeRaw`SELECT * FROM "wallets" WHERE "id" = ${walletId} FOR UPDATE`;
+
       // 1. Fetch user to check KYC limits and current monthly deposits
       const userRecord = await tx.user.findUnique({ where: { id: req.user.id } });
       

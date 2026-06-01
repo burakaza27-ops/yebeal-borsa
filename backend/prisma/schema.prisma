@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Enums ────────────────────────────────────────────
@@ -125,6 +126,10 @@ model User {
   supportTickets       SupportTicket[]
   refundRequests       RefundRequest[]
 
+  @@index([role])
+  @@index([isActive])
+  @@index([kycLevel])
+  @@index([phone])
   @@map("users")
 }
 
@@ -149,6 +154,8 @@ model Wallet {
   transactions Transaction[]
   withdrawals  WithdrawalRequest[]
 
+  @@index([userId])
+  @@index([isFamily])
   @@map("wallets")
 }
 
@@ -225,6 +232,10 @@ model Animal {
   favorites  Favorite[]
   kirchaPool KirchaPool?
 
+  @@index([sellerId])
+  @@index([isActive])
+  @@index([isApproved])
+  @@index([type])
   @@map("animals")
 }
 
@@ -259,6 +270,9 @@ model Transaction {
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
   @@map("transactions")
 }
 
@@ -296,6 +310,10 @@ model Order {
   refundRequests RefundRequest[]
   supportTickets SupportTicket[]
 
+  @@index([userId])
+  @@index([animalId])
+  @@index([deliveryStatus])
+  @@index([payoutId])
   @@map("orders")
 }
 
@@ -367,6 +385,21 @@ model AuditLog {
   admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@map("audit_logs")
+}
+
+// ─── Idempotency ──────────────────────────────────────────
+
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  userId    String
+  action    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([key])
+  @@map("idempotency_keys")
 }
 
 // ─── Delivery Zones ───────────────────────────────────

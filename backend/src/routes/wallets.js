@@ -122,6 +122,12 @@ router.post('/transfer', async (req, res, next) => {
 
     // Atomic interactive transaction — prevents double-spend concurrency race conditions
     const result = await req.prisma.$transaction(async (tx) => {
+      // 0. Pessimistic lock the wallet rows in consistent ID order to prevent deadlocks
+      const sortedIds = [fromWalletId, toWalletId].sort();
+      for (const id of sortedIds) {
+        await tx.$executeRaw`SELECT * FROM "wallets" WHERE "id" = ${id} FOR UPDATE`;
+      }
+
       // 1. Fetch fromWallet inside transaction
       const fromWallet = await tx.wallet.findUnique({
         where: { id: fromWalletId },

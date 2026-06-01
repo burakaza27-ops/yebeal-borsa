@@ -1122,7 +1122,8 @@ export async function setLanguage(lang) {
 }
 
 export async function makeDeposit(walletId, amount, description, method, holidayId = null) {
-  await apiFetch('/transactions/deposit', 'POST', { walletId, amount, description, method, holidayId });
+  const idempotencyKey = crypto.randomUUID();
+  await apiFetch('/transactions/deposit', 'POST', { walletId, amount, description, method, holidayId, idempotencyKey });
   await syncWithBackend();
   return readDB();
 }

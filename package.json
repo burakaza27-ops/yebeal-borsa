@@ -27,7 +27,9 @@
     "rate-limit-redis": "^4.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^4.4.3",
+    "zod-validation-error": "^5.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

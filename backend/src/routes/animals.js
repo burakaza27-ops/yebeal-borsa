@@ -248,6 +248,9 @@ router.post('/:id/reserve', authenticate, async (req, res, next) => {
     const now = new Date();
 
     const result = await req.prisma.$transaction(async (tx) => {
+      // Pessimistic row-level lock
+      await tx.$executeRaw`SELECT * FROM "animals" WHERE "id" = ${id} FOR UPDATE`;
+
       const animal = await tx.animal.findUnique({ where: { id } });
       if (!animal) throw new Error('Animal not found.');
       if (!animal.isActive || !animal.isApproved) throw new Error('Animal is not active or approved.');

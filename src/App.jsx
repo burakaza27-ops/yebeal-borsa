@@ -19,6 +19,7 @@ import Marketplace from './components/Marketplace';
 import AdminDashboard from './components/AdminDashboard';
 import SellerDashboard from './components/SellerDashboard';
 import Settings from './components/Settings';
+import SectionErrorBoundary from './components/ErrorBoundary';
 
 // ============================================
 // PRODUCTION POLISH: REACT ERROR BOUNDARY
@@ -457,16 +458,16 @@ function App() {
           </div>
 
           {/* Page Content */}
-          {role === 'customer' && page === 'dashboard' && <CustomerDashboard onRefresh={handleRefresh} lang={lang} onNavigate={setPage} showToast={showToast} user={user} />}
-          {role === 'customer' && page === 'holidays' && <HolidayPlanner onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
-          {role === 'customer' && page === 'wallet' && <WalletHub onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
-          {role === 'customer' && page === 'marketplace' && <Marketplace onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
-          {role === 'customer' && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'customer' && page === 'dashboard' && <SectionErrorBoundary name="Dashboard"><CustomerDashboard onRefresh={handleRefresh} lang={lang} onNavigate={setPage} showToast={showToast} user={user} /></SectionErrorBoundary>}
+          {role === 'customer' && page === 'holidays' && <SectionErrorBoundary name="Holiday Planner"><HolidayPlanner onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
+          {role === 'customer' && page === 'wallet' && <SectionErrorBoundary name="Wallet"><WalletHub onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
+          {role === 'customer' && page === 'marketplace' && <SectionErrorBoundary name="Marketplace"><Marketplace onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
+          {role === 'customer' && page === 'settings' && <SectionErrorBoundary name="Settings"><Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
           
-          {role === 'seller' && (user?.role?.toLowerCase() === 'seller' || user?.role?.toLowerCase() === 'admin') && page === 'seller' && <SellerDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
-          {role === 'seller' && (user?.role?.toLowerCase() === 'seller' || user?.role?.toLowerCase() === 'admin') && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'seller' && (user?.role?.toLowerCase() === 'seller' || user?.role?.toLowerCase() === 'admin') && page === 'seller' && <SectionErrorBoundary name="Seller Dashboard"><SellerDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
+          {role === 'seller' && (user?.role?.toLowerCase() === 'seller' || user?.role?.toLowerCase() === 'admin') && page === 'settings' && <SectionErrorBoundary name="Settings"><Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
           
-          {role === 'admin' && user?.role?.toLowerCase() === 'admin' && <AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'admin' && user?.role?.toLowerCase() === 'admin' && <SectionErrorBoundary name="Admin Dashboard"><AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
         </main>
       </div>
 

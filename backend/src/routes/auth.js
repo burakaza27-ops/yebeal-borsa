@@ -5,36 +5,40 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { authenticate } from '../middleware/auth.js';
+import { validateBody } from '../middleware/validate.js';
 
 const router = Router();
 
+// Zod Schemas
+const registerSchema = z.object({
+  phone: z.string().regex(/^(\+251|0)(9|7)\d{8}$/, 'Invalid Ethiopian phone number'),
+  fullName: z.string().min(2, 'Full name is required'),
+  fullNameAmharic: z.string().optional(),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  password: z.string().min(8, 'Password must be at least 8 characters').regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain number'),
+  faydaId: z.string().optional(),
+  gender: z.string().optional(),
+  region: z.string().optional(),
+  city: z.string().optional(),
+});
+
+const loginSchema = z.object({
+  phone: z.string().optional(),
+  faydaId: z.string().optional(),
+  password: z.string().min(1),
+}).refine(data => data.phone || data.faydaId, {
+  message: "Either phone number or Fayda ID must be provided",
+  path: ["phone"],
+});
+
 // ─── POST /api/auth/register ─────────────────────
-router.post('/register', async (req, res, next) => {
+router.post('/register', validateBody(registerSchema), async (req, res, next) => {
   try {
     const { phone, fullName, fullNameAmharic, email, password, faydaId, gender, region, city } = req.body;
 
-    if (!phone || !fullName || !password) {
-      return res.status(400).json({ error: 'Phone, full name, and password are required.' });
-    }
-
     const cleanedPhone = phone.trim().replace(/\s/g, '');
-    const phoneRegex = /^(\+251|0)(9|7)\d{8}$/;
-    if (!phoneRegex.test(cleanedPhone)) {
-      return res.status(400).json({ error: 'Invalid phone number. Use format 09xxxxxxxx or +2519xxxxxxxx.' });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-    }
-
-    // Enforce password strength: at least 1 uppercase letter and 1 number
-    if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
-    }
-    if (!/[0-9]/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one number.' });
-    }
 
     // Check if phone already exists
     const existing = await req.prisma.user.findUnique({ where: { phone: cleanedPhone } });
@@ -104,7 +108,7 @@ router.post('/register', async (req, res, next) => {
 });
 
 // ─── POST /api/auth/login ────────────────────────
-router.post('/login', async (req, res, next) => {
+router.post('/login', validateBody(loginSchema), async (req, res, next) => {
   try {
     const { phone, password, faydaId } = req.body;
 
