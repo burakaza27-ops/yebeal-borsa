@@ -1,4 +1,8 @@
-import 'dotenv/config';
+// Load .env only in non-Vercel environments (Vercel injects env vars directly)
+if (!process.env.VERCEL) {
+  const { config } = await import('dotenv');
+  config();
+}
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -208,14 +212,15 @@ export default app;
 
 // Handle uncaught exceptions and unhandled rejections cleanly
 process.on('uncaughtException', (err) => {
-  logger.error('💥 Uncaught Exception! Shutting down...', err);
-  process.exit(1);
+  logger.error('💥 Uncaught Exception:', err);
+  // Do NOT call process.exit(1) on Vercel — it would kill the shared worker for ALL users
+  if (!process.env.VERCEL) process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-  // In production, you might want to restart the service via process manager (e.g. PM2, Docker)
-  process.exit(1);
+  // Do NOT call process.exit(1) on Vercel — it would kill the shared worker for ALL users
+  if (!process.env.VERCEL) process.exit(1);
 });
 
 // Graceful shutdown

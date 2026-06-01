@@ -1,0 +1,7 @@
+# Exclude nested backend node_modules so all imports resolve
+# from root node_modules (where Vercel installs and Prisma generates)
+backend/node_modules
+
+# Exclude local dev files
+*.log
+logs/
