@@ -5,11 +5,11 @@ import {
 } from 'lucide-react';
 import {
   updateUserProfile, updateNotifPreferences, setLanguage,
-  initDB, formatDate, getTierInfo, TRANSLATIONS, syncWithBackend,
+  initDB, formatDate, getTierInfo, TRANSLATIONS,
   getClientSupportTickets, createSupportTicket, changePassword
 } from '../db';
 
-export default function Settings({ onRefresh, lang, user }) {
+export default function Settings({ onRefresh, lang, showToast, user }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [editMode, setEditMode] = useState(false);
   const [saved, setSaved] = useState(false);

@@ -20,7 +20,7 @@ const ssGet = (key, fallback) => {
   catch { return fallback; }
 };
 
-export default function Marketplace({ lang, showToast }) {
+export default function Marketplace({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
 
   const { data: animalsRaw = { animals: [] } } = useQuery({ queryKey: ['animals'], queryFn: fetchAnimals });

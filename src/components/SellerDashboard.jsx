@@ -11,7 +11,7 @@ import {
 } from '../db';
 import { fetchSellerOrders, fetchSellerAnimals, fetchWallets, fetchTransactions } from '../api';
 
-export default function SellerDashboard({ lang, showToast }) {
+export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
 
   const { data: walletData = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });

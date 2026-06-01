@@ -23,7 +23,7 @@ import {
   fetchPayouts, fetchRefunds, fetchTickets, fetchMarketPrices, fetchPriceHistory
 } from '../api';
 
-export default function AdminDashboard({ lang, showToast }) {
+export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
 
   const { data: customers = [] } = useQuery({ queryKey: ['admin-customers'], queryFn: fetchAdminCustomers });

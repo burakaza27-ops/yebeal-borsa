@@ -10,7 +10,7 @@ import {
 } from '../db';
 import { fetchHolidays, fetchWallets, fetchCustomerHolidays } from '../api';
 
-export default function HolidayPlanner({ lang, showToast }) {
+export default function HolidayPlanner({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
 
   const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });

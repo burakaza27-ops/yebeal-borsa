@@ -12,7 +12,7 @@ import {
 import { fetchWallets, fetchTransactions, fetchHolidays, fetchCustomerHolidays } from '../api';
 import { apiFetch } from '../db';
 
-export default function CustomerDashboard({ lang, showToast, user }) {
+export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToast, user }) {
   const queryClient = useQueryClient();
 
   const { data: wallets = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });

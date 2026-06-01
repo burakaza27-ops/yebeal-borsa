@@ -7,7 +7,7 @@ import {
   CheckCircle, XCircle, AlertTriangle
 } from 'lucide-react';
 import {
-  initDB, readDB, isLoggedIn, setLoggedIn, syncWithBackend,
+  initDB, readDB, isLoggedIn, setLoggedIn,
   getUser, getUnreadCount, getNotifications, markNotificationsRead,
   formatDateTime, TRANSLATIONS
 } from './db';
