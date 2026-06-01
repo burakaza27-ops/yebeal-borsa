@@ -418,7 +418,7 @@ function App() {
         </aside>
 
         {/* Main Content */}
-        <main className="main-content" key={`${role}-${page}`}>
+        <main className="main-content">
           {/* Mobile top bar */}
           <div className="mobile-topbar" style={{ marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
             <button className="btn btn-ghost btn-icon" onClick={() => setShowMobileSidebar(!showMobileSidebar)} aria-label="Menu">

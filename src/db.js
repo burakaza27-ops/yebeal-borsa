@@ -907,7 +907,7 @@ export const TRANSLATIONS = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || (window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api');
 
-async function apiFetch(path, method = 'GET', body = null) {
+async function apiFetch(path, method = 'GET', body = null, retries = 1) {
   const token = localStorage.getItem('yebeal_borsa_token');
   const headers = {
     'Content-Type': 'application/json',
@@ -931,6 +931,12 @@ async function apiFetch(path, method = 'GET', body = null) {
     if (contentType && contentType.includes('application/json')) {
       const data = await res.json();
       if (!res.ok) {
+        // If we get a 500 error from the backend itself (but properly formatted JSON)
+        if (res.status >= 500 && retries > 0) {
+          console.warn(`[apiFetch] Retrying ${method} ${path} after JSON 5xx error...`);
+          await new Promise(r => setTimeout(r, 1000));
+          return apiFetch(path, method, body, retries - 1);
+        }
         throw new Error(data.error || 'Network request failed');
       }
       return data;
@@ -940,6 +946,11 @@ async function apiFetch(path, method = 'GET', body = null) {
       console.error(`Non-JSON response from API [${res.status}]:`, text);
       
       if (res.status === 500 || res.status === 502 || res.status === 504) {
+        if (retries > 0) {
+          console.warn(`[apiFetch] Retrying ${method} ${path} after gateway/crash 5xx error...`);
+          await new Promise(r => setTimeout(r, 1000));
+          return apiFetch(path, method, body, retries - 1);
+        }
         throw new Error(
           `Backend connection failed (${res.status}). If you are running on Vercel, please make sure your DATABASE_URL and JWT_SECRET environment variables are correctly configured in your Vercel Dashboard project settings.`
         );
@@ -947,6 +958,11 @@ async function apiFetch(path, method = 'GET', body = null) {
       throw new Error(text.slice(0, 150) || 'Server returned an invalid non-JSON response.');
     }
   } catch (err) {
+    if ((err.message === 'Failed to fetch' || err.message.includes('Network request failed')) && retries > 0) {
+      console.warn(`[apiFetch] Retrying ${method} ${path} after network error...`);
+      await new Promise(r => setTimeout(r, 1000));
+      return apiFetch(path, method, body, retries - 1);
+    }
     console.error(`API Fetch Error [${method} ${path}]:`, err);
     throw err;
   }

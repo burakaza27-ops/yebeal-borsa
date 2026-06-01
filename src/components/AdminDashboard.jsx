@@ -28,8 +28,13 @@ export default function AdminDashboard({ onRefresh, lang, showToast }) {
   const [withdrawals, setWithdrawals] = useState(getWithdrawalRequests());
   const [auditLog, setAuditLog] = useState(getAuditLog());
   const [zones, setZones] = useState(getDeliveryZones());
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState(() => {
+    return sessionStorage.getItem('adminDashboardActiveSection') || 'overview';
+  });
 
+  useEffect(() => {
+    sessionStorage.setItem('adminDashboardActiveSection', activeSection);
+  }, [activeSection]);
   // Extra Admin panel states
   const [payouts, setPayouts] = useState([]);
   const [refunds, setRefunds] = useState([]);

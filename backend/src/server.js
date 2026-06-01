@@ -49,7 +49,11 @@ if (!process.env.VERCEL) {
 }
 
 const app = express();
-const prisma = new PrismaClient();
+
+const globalForPrisma = globalThis;
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
 const PORT = process.env.PORT || 3001;
 
 // ─── Global Middleware ─────────────────────────────
