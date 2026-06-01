@@ -34,8 +34,8 @@ const logger = winston.createLogger({
         : combine(colorize(), devFormat),
     }),
 
-    // File transport — production only: error logs persisted to disk
-    ...(isProduction
+    // File transport — production only (and only if NOT on Vercel/serverless where disk is read-only)
+    ...(isProduction && !process.env.VERCEL
       ? [
           new winston.transports.File({
             filename: 'logs/error.log',
