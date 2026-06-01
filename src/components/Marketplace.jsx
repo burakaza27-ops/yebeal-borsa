@@ -161,19 +161,19 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
     setTimeout(() => setLoading(false), 600);
   };
 
-  const locations = [...new Set(animals.map(a => a.location.area))];
+  const locations = [...new Set(animals.map(a => a.locationArea))];
 
   const filtered = animals
     .filter(a => {
       if (!a.isApproved) return false;
       if (typeFilter !== 'all' && a.type !== typeFilter) return false;
-      if (locationFilter !== 'all' && a.location.area !== locationFilter) return false;
+      if (locationFilter !== 'all' && a.locationArea !== locationFilter) return false;
       if (ratingFilter === '4.5+' && a.sellerRating < 4.5) return false;
       if (ratingFilter === '4.7+' && a.sellerRating < 4.7) return false;
       if (certFilter === 'certified' && !a.healthCertificate) return false;
       if (activeTab === 'favorites' && !favorites.includes(a.id)) return false;
       if (dateFilter && new Date(a.availableDate) > new Date(dateFilter)) return false;
-      if (search && ![a.breed, a.type, a.description, a.sellerName, a.location.area]
+      if (search && ![a.breed, a.type, a.description, a.sellerName, a.locationArea]
         .some(f => f.toLowerCase().includes(search.toLowerCase()))) return false;
       if (priceRange === 'low' && a.price > 5000) return false;
       if (priceRange === 'mid' && (a.price < 5000 || a.price > 15000)) return false;
@@ -325,14 +325,14 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
     const basePrice = selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price;
     const insuranceFee = vetInsurance ? Math.round(basePrice * 0.05) : 0;
     if (deliveryOption !== 'delivery') return basePrice + insuranceFee;
-    const bd = getDeliveryBreakdown(selectedAnimal.location.area, deliveryZone, selectedAnimal.type, basePrice);
+    const bd = getDeliveryBreakdown(selectedAnimal.locationArea, deliveryZone, selectedAnimal.type, basePrice);
     return bd.grandTotal + insuranceFee;
   };
  
   const breakdown = selectedAnimal && deliveryOption === 'delivery'
     ? (() => {
         const basePrice = selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price;
-        return getDeliveryBreakdown(selectedAnimal.location.area, deliveryZone, selectedAnimal.type, basePrice);
+        return getDeliveryBreakdown(selectedAnimal.locationArea, deliveryZone, selectedAnimal.type, basePrice);
       })()
     : null;
 
@@ -496,7 +496,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                       <div className="animal-card-name">{lang === 'am' ? translateAnimal(animal.type) + ' (' + animal.breed + ')' : animal.breed + ' ' + animal.type.charAt(0).toUpperCase() + animal.type.slice(1)}</div>
                       <div className="animal-card-meta">
                         <span><Weight size={13} /> {animal.weight}{lang === 'am' ? 'ኪ.ግ' : 'kg'}</span>
-                        <span><MapPin size={13} /> {animal.location.area}</span>
+                        <span><MapPin size={13} /> {animal.locationArea}</span>
                         <span><Star size={13} fill="var(--gold)" color="var(--gold)" /> {animal.sellerRating}</span>
                         {animal.age && <span><Clock size={13} /> {animal.age}</span>}
                       </div>
@@ -802,7 +802,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                   { label: t.breed, value: selectedAnimal.breed },
                   { label: lang === 'am' ? 'ክብደት' : 'Weight', value: `${selectedAnimal.weight} ${lang === 'am' ? 'ኪ.ግ' : 'kg'}` },
                   { label: t.age, value: selectedAnimal.age || 'N/A' },
-                  { label: lang === 'am' ? 'ቦታ' : 'Location', value: selectedAnimal.location.area },
+                  { label: lang === 'am' ? 'ቦታ' : 'Location', value: selectedAnimal.locationArea },
                   { label: lang === 'am' ? 'የሚገኝበት ቀን' : 'Available', value: formatDate(selectedAnimal.availableDate) },
                   { label: lang === 'am' ? 'የጤና ማረጋገጫ' : 'Health Cert.', value: selectedAnimal.healthCertificate ? (lang === 'am' ? '✓ አዎ' : '✓ Yes') : (lang === 'am' ? '✗ የለም' : '✗ No'), color: selectedAnimal.healthCertificate ? 'var(--green-bright)' : 'var(--text-muted)' },
                   { label: lang === 'am' ? 'ጾታ' : 'Gender', value: selectedAnimal.gender || (lang === 'am' ? 'ወንድ' : 'Male') },
@@ -820,7 +820,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--blue-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--blue)' }}><User size={22} /></div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700 }}>{selectedAnimal.sellerName}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{t.verifiedSeller} · {selectedAnimal.location.area}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{t.verifiedSeller} · {selectedAnimal.locationArea}</div>
                 </div>
                 <div className="flex items-center gap-1"><Star size={14} fill="var(--gold)" color="var(--gold)" /><span style={{ fontWeight: 700 }}>{selectedAnimal.sellerRating}</span></div>
               </div>
@@ -848,7 +848,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                 <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
                 <h3 style={{ fontSize: '1.3rem', marginBottom: 8 }}>{t.orderPlaced}</h3>
                 <p style={{ color: 'var(--text-secondary)' }}>
-                  {deliveryOption === 'delivery' ? `${t.deliveringTo} ${deliveryZone} · ${deliveryTimeWindow}` : `${t.readyForPickup} ${selectedAnimal.location.area}`}
+                  {deliveryOption === 'delivery' ? `${t.deliveringTo} ${deliveryZone} · ${deliveryTimeWindow}` : `${t.readyForPickup} ${selectedAnimal.locationArea}`}
                 </p>
               </div>
             ) : (
@@ -862,7 +862,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                     <div style={{ width: 56, height: 56, borderRadius: 'var(--radius-md)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', flexShrink: 0 }}>{ANIMAL_EMOJIS[selectedAnimal.type]}</div>
                     <div>
                       <div style={{ fontWeight: 700 }}>{selectedAnimal.breed} {translateAnimal(selectedAnimal.type)}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{selectedAnimal.weight}{lang === 'am' ? 'ኪ.ግ' : 'kg'} · {selectedAnimal.location.area} · ⭐ {selectedAnimal.sellerRating}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{selectedAnimal.weight}{lang === 'am' ? 'ኪ.ግ' : 'kg'} · {selectedAnimal.locationArea} · ⭐ {selectedAnimal.sellerRating}</div>
                       {selectedAnimal.type === 'kircha' && (
                         <div style={{ marginTop: 6 }}>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
@@ -940,15 +940,15 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                           <strong style={{ color: 'var(--text-primary)' }}>
                             {lang === 'am' ? '📍 ተቋም: ' : '📍 Facility: '}
                           </strong>
-                          {selectedAnimal.location.area}{lang === 'am' ? ' የእንስሳት ገበያ ማዕከል' : ' Livestock Market Center'}
+                          {selectedAnimal.locationArea}{lang === 'am' ? ' የእንስሳት ገበያ ማዕከል' : ' Livestock Market Center'}
                         </div>
                         <div style={{ marginBottom: 6 }}>
                           <strong style={{ color: 'var(--text-primary)' }}>
                             {lang === 'am' ? '🏢 ማከማቻ: ' : '🏢 Holding Yard: '}
                           </strong>
                           {lang === 'am'
-                            ? `ሞጆ/ቢሾፍቱ ማቆያ - ${selectedAnimal.location.area} ዞን`
-                            : `Modjo/Bishoftu Holding Facility — ${selectedAnimal.location.area} Zone`}
+                            ? `ሞጆ/ቢሾፍቱ ማቆያ - ${selectedAnimal.locationArea} ዞን`
+                            : `Modjo/Bishoftu Holding Facility — ${selectedAnimal.locationArea} Zone`}
                         </div>
                         <div style={{ marginBottom: 6 }}>
                           <strong style={{ color: 'var(--text-primary)' }}>

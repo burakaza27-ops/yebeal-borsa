@@ -74,7 +74,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
   const [showAddAnimal, setShowAddAnimal] = useState(false);
   const [newAnimal, setNewAnimal] = useState({
     type: 'sheep', breed: '', weight: '', price: '', age: '',
-    location: { area: 'Megenagna' }, description: '', sellerName: 'Admin', sellerRating: 5.0, healthCertificate: true
+    locationArea: 'Megenagna', description: '', sellerName: 'Admin', sellerRating: 5.0, healthCertificate: true
   });
   const [editZone, setEditZone] = useState(null);
 
@@ -653,7 +653,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
                 {animals.filter(a => a.isActive).map(a => (
                   <tr key={a.id} style={{ background: !a.isApproved ? 'var(--gold-soft)' : undefined }}>
                     <td><div className="flex items-center gap-3"><span style={{ fontSize: '1.3rem' }}>{ANIMAL_EMOJIS[a.type]}</span><div><div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{a.breed}</div><div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{translateAnimal(a.type)}</div></div></div></td>
-                    <td style={{ fontSize: '0.82rem' }}>{a.sellerName === 'Admin' && lang === 'am' ? 'አስተዳዳሪ' : a.sellerName}</td><td style={{ fontWeight: 600 }}>{a.weight}kg</td><td style={{ fontWeight: 700, color: 'var(--gold)' }}>{formatETB(a.price)}</td><td style={{ fontSize: '0.82rem' }}>{translateArea(a.location.area)}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{a.sellerName === 'Admin' && lang === 'am' ? 'አስተዳዳሪ' : a.sellerName}</td><td style={{ fontWeight: 600 }}>{a.weight}kg</td><td style={{ fontWeight: 700, color: 'var(--gold)' }}>{formatETB(a.price)}</td><td style={{ fontSize: '0.82rem' }}>{translateArea(a.locationArea)}</td>
                     <td>{a.healthCertificate ? <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>✓</span> : <span className="badge badge-red" style={{ fontSize: '0.65rem' }}>✗</span>}</td>
                     <td>{a.isApproved ? <span className="badge badge-green">{lang === 'am' ? 'ተቀባይነት አግኝቷል' : 'OK'}</span> : <span className="badge badge-gold">{lang === 'am' ? 'በመጠባበቅ ላይ' : 'Pending'}</span>}</td>
                     <td>{!a.isApproved ? <div className="flex gap-2"><button className="btn btn-success btn-sm" onClick={() => handleApprove(a.id)}><CheckCircle size={14} /></button><button className="btn btn-danger btn-sm" onClick={() => handleReject(a.id)}><Ban size={14} /></button></div> : <button className="btn btn-ghost btn-sm" onClick={() => handleReject(a.id)}><X size={14} /></button>}</td>
@@ -1124,7 +1124,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
                         <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{coords.lng.toFixed(4)}</td>
                       </>
                     )}
-                    <td><span className="badge badge-muted">{animals.filter(a => a.isActive && a.isApproved && a.location.area === name).length} {lang === 'am' ? 'እንስሳት' : 'listings'}</span></td>
+                    <td><span className="badge badge-muted">{animals.filter(a => a.isActive && a.isApproved && a.locationArea === name).length} {lang === 'am' ? 'እንስሳት' : 'listings'}</span></td>
                     <td>
                       {editZone?.name === name ? (
                         <div className="flex gap-2">
@@ -1183,7 +1183,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
               <div className="form-group"><label className="form-label">{lang === 'am' ? 'ክብደት (ኪ.ግ)' : 'Weight (kg)'}</label><input type="number" className="form-input" placeholder="30" value={newAnimal.weight} onChange={e => setNewAnimal({ ...newAnimal, weight: e.target.value })} /></div>
               <div className="form-group"><label className="form-label">{lang === 'am' ? 'ዋጋ (ብር)' : 'Price (ETB)'}</label><input type="number" className="form-input" placeholder="12000" value={newAnimal.price} onChange={e => setNewAnimal({ ...newAnimal, price: e.target.value })} /></div>
               <div className="form-group"><label className="form-label">{lang === 'am' ? 'ዕድሜ' : 'Age'}</label><input type="text" className="form-input" placeholder={lang === 'am' ? 'ለምሳሌ፡ 2 ዓመት' : 'e.g., 2 years'} value={newAnimal.age} onChange={e => setNewAnimal({ ...newAnimal, age: e.target.value })} /></div>
-              <div className="form-group"><label className="form-label">{lang === 'am' ? 'አካባቢ (ዞን)' : 'Location (Zone)'}</label><select className="form-input form-select" value={newAnimal.location.area} onChange={e => setNewAnimal({ ...newAnimal, location: { area: e.target.value } })}>{Object.keys(zones).map(z => <option key={z} value={z}>{translateArea(z)}</option>)}</select></div>
+              <div className="form-group"><label className="form-label">{lang === 'am' ? 'አካባቢ (ዞን)' : 'Location (Zone)'}</label><select className="form-input form-select" value={newAnimal.locationArea} onChange={e => setNewAnimal({ ...newAnimal, locationArea: e.target.value })}>{Object.keys(zones).map(z => <option key={z} value={z}>{translateArea(z)}</option>)}</select></div>
             </div>
             <div className="form-group"><label className="form-label">{lang === 'am' ? 'መግለጫ' : 'Description'}</label><textarea className="form-input" rows={2} placeholder={lang === 'am' ? 'ጤናማ፣ ሳር የበላ...' : 'Healthy, grass-fed...'} value={newAnimal.description} onChange={e => setNewAnimal({ ...newAnimal, description: e.target.value })} style={{ resize: 'vertical' }} /></div>
             <div className="form-group"><label className="form-label">{lang === 'am' ? 'የጤና ማረጋገጫ' : 'Health Certificate'}</label><select className="form-input form-select" value={newAnimal.healthCertificate} onChange={e => setNewAnimal({ ...newAnimal, healthCertificate: e.target.value === 'true' })}><option value="true">{t.yes}</option><option value="false">{t.no}</option></select></div>

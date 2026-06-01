@@ -472,7 +472,7 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
                           </span>
                         )}
                       </td>
-                      <td style={{ fontSize: '0.82rem' }}>{l.location.area || l.locationArea}</td>
+                      <td style={{ fontSize: '0.82rem' }}>{l.locationArea}</td>
                       <td>
                         {l.type === 'kircha' && l.isApproved ? (
                           (() => {
