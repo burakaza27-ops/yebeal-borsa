@@ -991,6 +991,7 @@ export async function syncWithBackend() {
     const sellerRequests = (user.role === 'SELLER' || user.role === 'FATTENER' || user.role === 'TRADER')
       ? Promise.allSettled([
           apiFetch('/orders/seller'), // 0
+          apiFetch('/animals?seller=me&approvedOnly=false'), // 1
         ])
       : Promise.resolve([]);
 
@@ -1017,6 +1018,7 @@ export async function syncWithBackend() {
     const pendingAnimals    = adminResults.length > 0 ? settled(adminResults[3], []) : [];
 
     const sellerOrders = sellerResults.length > 0 ? settled(sellerResults[0], []) : [];
+    const sellerAnimals = sellerResults.length > 0 ? settled(sellerResults[1], { animals: [] }) : { animals: [] };
 
     // Log any partial failures for debugging (non-blocking)
     [...coreResults, ...(adminResults || []), ...(sellerResults || [])].forEach((r, i) => {
@@ -1024,6 +1026,22 @@ export async function syncWithBackend() {
         console.warn(`[syncWithBackend] Request #${i} failed:`, r.reason?.message || r.reason);
       }
     });
+
+    // Safely combine core marketplace animals with role-specific unapproved listings
+    let mergedAnimals = animals?.animals || [];
+
+    if (user.role === 'ADMIN' && pendingAnimals && pendingAnimals.length > 0) {
+      const existingIds = new Set(mergedAnimals.map(a => a.id));
+      const uniquePending = pendingAnimals.filter(pa => !existingIds.has(pa.id));
+      mergedAnimals = [...mergedAnimals, ...uniquePending];
+    }
+
+    const sellerAnimalsList = sellerAnimals?.animals || [];
+    if (sellerAnimalsList.length > 0) {
+      const existingIds = new Set(mergedAnimals.map(a => a.id));
+      const uniqueSeller = sellerAnimalsList.filter(sa => !existingIds.has(sa.id));
+      mergedAnimals = [...mergedAnimals, ...uniqueSeller];
+    }
 
     const updatedDB = updateDB({
       user: {
@@ -1077,7 +1095,7 @@ export async function syncWithBackend() {
         description: h.description,
       })),
       customerHolidays: user.customerHolidays || [],
-      animals: (animals?.animals || []).map(a => ({
+      animals: mergedAnimals.map(a => ({
         id: a.id,
         type: a.type.toLowerCase(), // frontend expects lowercase
         breed: a.breed,

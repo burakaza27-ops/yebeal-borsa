@@ -159,6 +159,7 @@ export default function Marketplace({ onRefresh, lang, showToast }) {
 
   const filtered = animals
     .filter(a => {
+      if (!a.isApproved) return false;
       if (typeFilter !== 'all' && a.type !== typeFilter) return false;
       if (locationFilter !== 'all' && a.location.area !== locationFilter) return false;
       if (ratingFilter === '4.5+' && a.sellerRating < 4.5) return false;

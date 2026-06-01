@@ -17,10 +17,24 @@ router.get('/', optionalAuth, async (req, res, next) => {
       availableBefore, sortBy = 'newest',
       search, limit, offset,
       approvedOnly = 'true',
+      seller,
     } = req.query;
 
     const where = { isActive: true };
-    if (approvedOnly === 'true') where.isApproved = true;
+
+    if (seller === 'me') {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required to view your listings.' });
+      }
+      where.sellerId = req.user.id;
+      if (approvedOnly === 'true') {
+        where.isApproved = true;
+      }
+    } else {
+      if (approvedOnly === 'true') {
+        where.isApproved = true;
+      }
+    }
 
     // Validate numerical pagination parameters
     const limitVal = parseAndValidateInt(limit, 'limit', false, 1) || 50;

@@ -248,15 +248,41 @@ router.post('/broadcast', async (req, res, next) => {
     const validTypes = ['DEPOSIT', 'HOLIDAY', 'MARKETPLACE', 'DELIVERY', 'SYSTEM', 'PROMOTION', 'ORDER'];
     const notifType = type && validTypes.includes(type.toUpperCase()) ? type.toUpperCase() : 'SYSTEM';
 
-    // Broadcast: write userId = null in db (notifications.js matches null for broadcasts)
-    const notification = await req.prisma.notification.create({
-      data: {
-        userId: null,
-        title,
-        message,
-        type: notifType,
+    // Fetch all active users with their preferences
+    const users = await req.prisma.user.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        notifDeposits: true,
+        notifHolidays: true,
+        notifDelivery: true,
+        notifSystem: true,
+        notifPromotions: true,
       },
     });
+
+    // Filter users based on notification type and their preferences
+    const filteredUsers = users.filter(u => {
+      if (notifType === 'SYSTEM' && !u.notifSystem) return false;
+      if (notifType === 'PROMOTION' && !u.notifPromotions) return false;
+      if (notifType === 'HOLIDAY' && !u.notifHolidays) return false;
+      if (notifType === 'DEPOSIT' && !u.notifDeposits) return false;
+      if (notifType === 'DELIVERY' && !u.notifDelivery) return false;
+      if (notifType === 'ORDER' && !u.notifDelivery) return false;
+      return true;
+    });
+
+    if (filteredUsers.length > 0) {
+      await req.prisma.notification.createMany({
+        data: filteredUsers.map(u => ({
+          userId: u.id,
+          title,
+          message,
+          type: notifType,
+          read: false,
+        })),
+      });
+    }
 
     // Write audit log
     await req.prisma.auditLog.create({
@@ -268,7 +294,16 @@ router.post('/broadcast', async (req, res, next) => {
       },
     });
 
-    res.status(201).json(notification);
+    // Return a broadcast summary object for response consistency
+    res.status(201).json({
+      id: `broadcast-${Date.now()}`,
+      userId: null,
+      title,
+      message,
+      type: notifType,
+      read: false,
+      createdAt: new Date(),
+    });
   } catch (err) {
     next(err);
   }
