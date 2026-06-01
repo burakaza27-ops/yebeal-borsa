@@ -1,21 +1,29 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp, DollarSign, Award, Star, Plus, PlusCircle,
   CheckCircle, Clock, XCircle, ShoppingBag, Truck, CreditCard,
   ChevronRight, ArrowUpRight, ArrowDownRight, ShieldAlert, FileText, MapPin, Calendar, Users
 } from 'lucide-react';
 import {
-  getUser, getWallets, getSellerOrders, getSellerListings,
-  addAnimalListing, editAnimalListing, deleteAnimalListing, requestWithdrawal, getTransactions,
+  addAnimalListing, editAnimalListing, deleteAnimalListing, requestWithdrawal,
   formatETB, formatDate, ANIMAL_EMOJIS, TRANSLATIONS, getKirchaPool
 } from '../db';
+import { fetchSellerOrders, fetchSellerAnimals, fetchWallets, fetchTransactions } from '../api';
 
-export default function SellerDashboard({ onRefresh, lang, showToast }) {
+export default function SellerDashboard({ lang, showToast }) {
+  const queryClient = useQueryClient();
+
+  const { data: walletData = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
+  const { data: transactionsData = [] } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
+  const { data: orders = [] } = useQuery({ queryKey: ['seller-orders'], queryFn: fetchSellerOrders });
+  const { data: sellerAnimalsData = { animals: [] } } = useQuery({ queryKey: ['seller-animals'], queryFn: fetchSellerAnimals });
+  
+  const listings = sellerAnimalsData.animals || [];
+  const wallet = walletData.find(w => !w.isFamily) || null;
+  const transactions = wallet ? transactionsData.filter(t => t.walletId === wallet.id) : [];
+
   const [activeTab, setActiveTab] = useState('overview');
-  const [listings, setListings] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [wallet, setWallet] = useState(null);
   const [kirchaPools, setKirchaPools] = useState({});
   
   // Modals/Forms State
@@ -59,45 +67,28 @@ export default function SellerDashboard({ onRefresh, lang, showToast }) {
   const [payoutReason, setPayoutReason] = useState('');
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-  const user = getUser();
-
-  // Load seller data
-  const loadData = async () => {
-    const list = getSellerListings();
-    setListings(list);
-    setOrders(getSellerOrders());
-    
-    // Get seller primary wallet
-    const wallets = getWallets();
-    const primary = wallets.find(w => !w.isFamily) || null;
-    setWallet(primary);
-    
-    if (primary) {
-      setTransactions(getTransactions(primary.id));
-    }
-
-    // Fetch Kircha pools info asynchronously
-    const pools = {};
-    for (const l of list) {
-      if (l.type === 'kircha') {
-        try {
-          const pool = await getKirchaPool(l.id);
-          pools[l.id] = pool;
-        } catch (err) {
-          console.error(err);
-        }
-      }
-    }
-    setKirchaPools(pools);
-  };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const loadPools = async () => {
+      const pools = {};
+      for (const l of listings) {
+        if (l.type === 'kircha') {
+          try {
+            const pool = await getKirchaPool(l.id);
+            pools[l.id] = pool;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      }
+      setKirchaPools(pools);
+    };
+    if (listings.length > 0) loadPools();
+  }, [listings]);
 
   const handleRefresh = async () => {
-    loadData();
-    if (onRefresh) onRefresh();
+    await queryClient.invalidateQueries();
+
   };
 
   // Submit new animal listing

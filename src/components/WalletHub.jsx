@@ -1,21 +1,26 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CreditCard, Plus, ArrowRightLeft, Users, Download, Trash2,
   ArrowDownRight, ArrowUpRight, Edit3, AlertCircle, Clock, Check, X,
   FileText, Settings
 } from 'lucide-react';
 import {
-  getWallets, getTransactions, getUser, addFamilyWallet, removeFamilyWallet,
+  addFamilyWallet, removeFamilyWallet,
   transferBetweenWallets, updateSpendingLimit, requestWithdrawal,
-  getWithdrawalRequests, formatETB, formatDateTime, formatDate, getTierInfo,
-  getAnalytics, TRANSLATIONS, syncWithBackend, getHolidays, makeDeposit, getOrders
+  formatETB, formatDateTime, formatDate, getTierInfo,
+  getAnalytics, TRANSLATIONS, makeDeposit
 } from '../db';
+import { fetchWallets, fetchTransactions, fetchWithdrawals, fetchHolidays, fetchOrders } from '../api';
 
-export default function WalletHub({ onRefresh, lang, showToast }) {
-  const [wallets, setWallets] = useState(getWallets());
-  const [transactions, setTransactions] = useState(getTransactions());
-  const [user] = useState(getUser());
-  const [withdrawals, setWithdrawals] = useState(getWithdrawalRequests());
+export default function WalletHub({ onRefresh, lang, showToast, user }) {
+  const queryClient = useQueryClient();
+  const { data: wallets = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
+  const { data: transactionsRaw = [] } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
+  const transactions = transactionsRaw.transactions || transactionsRaw || [];
+  const { data: withdrawals = [] } = useQuery({ queryKey: ['withdrawals'], queryFn: fetchWithdrawals });
+  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
+  const { data: orders = [] } = useQuery({ queryKey: ['orders'], queryFn: fetchOrders });
   const [showAddFamily, setShowAddFamily] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -46,9 +51,9 @@ export default function WalletHub({ onRefresh, lang, showToast }) {
   const [loading, setLoading] = useState(false);
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-  const analytics = getAnalytics();
-  const activeHolidays = getHolidays() || [];
-  const hasPendingOrders = getOrders().some(o => o.deliveryStatus !== 'delivered' && o.deliveryStatus !== 'cancelled');
+  const analytics = getAnalytics(transactions);
+  const activeHolidays = holidays || [];
+  const hasPendingOrders = orders.some(o => o.deliveryStatus !== 'delivered' && o.deliveryStatus !== 'cancelled');
 
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
@@ -116,10 +121,7 @@ export default function WalletHub({ onRefresh, lang, showToast }) {
   };
 
   const refresh = async () => {
-    await syncWithBackend();
-    setWallets(getWallets());
-    setTransactions(getTransactions());
-    setWithdrawals(getWithdrawalRequests());
+    await queryClient.invalidateQueries();
     if (onRefresh) onRefresh();
   };
 

@@ -4,13 +4,12 @@ import {
   Save, Check, ChevronRight, Lock, Fingerprint, HelpCircle, MessageSquare
 } from 'lucide-react';
 import {
-  getUser, updateUserProfile, updateNotifPreferences, setLanguage,
+  updateUserProfile, updateNotifPreferences, setLanguage,
   initDB, formatDate, getTierInfo, TRANSLATIONS, syncWithBackend,
   getClientSupportTickets, createSupportTicket, changePassword
 } from '../db';
 
-export default function Settings({ onRefresh, lang }) {
-  const [user, setUser] = useState(getUser());
+export default function Settings({ onRefresh, lang, user }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [editMode, setEditMode] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -37,12 +36,23 @@ export default function Settings({ onRefresh, lang }) {
   const [ticketSuccess, setTicketSuccess] = useState(false);
 
   // Edit form state
-  const [editName, setEditName] = useState(user.fullName);
-  const [editEmail, setEditEmail] = useState(user.email);
-  const [editPhone, setEditPhone] = useState(user.phone);
-  const [editAddress, setEditAddress] = useState(user.address || '');
-  const [notifPrefs, setNotifPrefs] = useState(user.notifPreferences || {});
-  const [selectedLang, setSelectedLang] = useState(user.language || 'en');
+  const [editName, setEditName] = useState(user?.fullName || '');
+  const [editEmail, setEditEmail] = useState(user?.email || '');
+  const [editPhone, setEditPhone] = useState(user?.phone || '');
+  const [editAddress, setEditAddress] = useState(user?.address || '');
+  const [notifPrefs, setNotifPrefs] = useState(user?.notifPreferences || {});
+  const [selectedLang, setSelectedLang] = useState(user?.language || 'en');
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.fullName || '');
+      setEditEmail(user.email || '');
+      setEditPhone(user.phone || '');
+      setEditAddress(user.address || '');
+      setNotifPrefs(user.notifPreferences || {});
+      setSelectedLang(user.language || 'en');
+    }
+  }, [user]);
 
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
@@ -58,8 +68,6 @@ export default function Settings({ onRefresh, lang }) {
   };
 
   const refresh = async () => {
-    await syncWithBackend();
-    setUser(getUser());
     if (onRefresh) onRefresh();
   };
 

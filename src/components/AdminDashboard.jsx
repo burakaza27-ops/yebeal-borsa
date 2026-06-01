@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, TrendingUp, ShoppingBag, Bell, Calendar, CheckCircle,
   X, Ban, Plus, Send, BarChart3, AlertTriangle,
@@ -7,27 +8,38 @@ import {
   CreditCard, ArrowUpDown
 } from 'lucide-react';
 import {
-  getAllCustomers, getAllHolidaysRaw, getAllAnimals, getNotifications,
-  getTransactions, getWithdrawalRequests, getAuditLog,
   approveAnimal, rejectAnimal, broadcastNotification,
   addHoliday, toggleHoliday, processWithdrawal,
   toggleCustomerActive, updateCustomerRole,
-  generateFinancialReport, addAnimalListing, getDeliveryZones, updateDeliveryZone,
+  generateFinancialReport, addAnimalListing, updateDeliveryZone,
   formatETB, formatDate, formatDateTime,
-  ANIMAL_EMOJIS, DELIVERY_ZONES, TRANSLATIONS, readDB, syncWithBackend,
-  getPendingPayouts, processPayout, getPendingRefunds, processRefund,
-  getSupportTickets, resolveSupportTicket, getMarketPrices, getPriceHistory,
-  updateMarketPrice, deleteHoliday
+  ANIMAL_EMOJIS, DELIVERY_ZONES, TRANSLATIONS,
+  processPayout, processRefund,
+  resolveSupportTicket, updateMarketPrice, deleteHoliday
 } from '../db';
+import {
+  fetchAdminCustomers, fetchHolidays, fetchAnimals, fetchNotifications,
+  fetchAdminWithdrawals, fetchAdminAuditLogs, fetchDeliveryZones,
+  fetchPayouts, fetchRefunds, fetchTickets, fetchMarketPrices, fetchPriceHistory
+} from '../api';
 
-export default function AdminDashboard({ onRefresh, lang, showToast }) {
-  const [customers, setCustomers] = useState(getAllCustomers());
-  const [holidays, setHolidays] = useState(getAllHolidaysRaw());
-  const [animals, setAnimals] = useState(getAllAnimals());
-  const [notifications, setNotifications] = useState(getNotifications());
-  const [withdrawals, setWithdrawals] = useState(getWithdrawalRequests());
-  const [auditLog, setAuditLog] = useState(getAuditLog());
-  const [zones, setZones] = useState(getDeliveryZones());
+export default function AdminDashboard({ lang, showToast }) {
+  const queryClient = useQueryClient();
+
+  const { data: customers = [] } = useQuery({ queryKey: ['admin-customers'], queryFn: fetchAdminCustomers });
+  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
+  const { data: animals = [] } = useQuery({ queryKey: ['animals'], queryFn: fetchAnimals });
+  const { data: notifications = [] } = useQuery({ queryKey: ['notifications'], queryFn: fetchNotifications });
+  const { data: withdrawals = [] } = useQuery({ queryKey: ['admin-withdrawals'], queryFn: fetchAdminWithdrawals });
+  const { data: auditLog = [] } = useQuery({ queryKey: ['admin-audit'], queryFn: fetchAdminAuditLogs });
+  const { data: zones = [] } = useQuery({ queryKey: ['zones'], queryFn: fetchDeliveryZones });
+
+  const { data: payouts = [] } = useQuery({ queryKey: ['payouts'], queryFn: fetchPayouts });
+  const { data: refunds = [] } = useQuery({ queryKey: ['refunds'], queryFn: fetchRefunds });
+  const { data: tickets = [] } = useQuery({ queryKey: ['tickets'], queryFn: fetchTickets });
+  const { data: marketPrices = [] } = useQuery({ queryKey: ['market-prices'], queryFn: fetchMarketPrices });
+  const { data: priceHistory = [] } = useQuery({ queryKey: ['price-history'], queryFn: fetchPriceHistory });
+
   const [activeSection, setActiveSection] = useState(() => {
     return sessionStorage.getItem('adminDashboardActiveSection') || 'overview';
   });
@@ -35,16 +47,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast }) {
   useEffect(() => {
     sessionStorage.setItem('adminDashboardActiveSection', activeSection);
   }, [activeSection]);
-  // Extra Admin panel states
-  const [payouts, setPayouts] = useState([]);
-  const [refunds, setRefunds] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [marketPrices, setMarketPrices] = useState([]);
-  const [priceHistory, setPriceHistory] = useState([]);
 
-  useEffect(() => {
-    refresh();
-  }, []);
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -221,34 +224,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast }) {
   };
 
   const refresh = async () => {
-    await syncWithBackend();
-    setCustomers(getAllCustomers()); setHolidays(getAllHolidaysRaw());
-    setAnimals(getAllAnimals()); setNotifications(getNotifications());
-    setWithdrawals(getWithdrawalRequests()); setAuditLog(getAuditLog());
-    setZones(getDeliveryZones());
-
-    try {
-      const pData = await getPendingPayouts();
-      setPayouts(pData);
-    } catch (e) { console.error('Failed to load pending payouts:', e); }
-    try {
-      const rData = await getPendingRefunds();
-      setRefunds(rData);
-    } catch (e) { console.error('Failed to load pending refunds:', e); }
-    try {
-      const tData = await getSupportTickets();
-      setTickets(tData);
-    } catch (e) { console.error('Failed to load support tickets:', e); }
-    try {
-      const mpData = await getMarketPrices();
-      setMarketPrices(mpData);
-    } catch (e) { console.error('Failed to load market prices:', e); }
-    try {
-      const phData = await getPriceHistory();
-      setPriceHistory(phData);
-    } catch (e) { console.error('Failed to load price history:', e); }
-
-    if (onRefresh) onRefresh();
+    await queryClient.invalidateQueries();
   };
 
   const totalDeposits = customers.reduce((s, c) => s + c.totalDeposits, 0);

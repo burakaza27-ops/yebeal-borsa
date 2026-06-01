@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, Component } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchUser } from './api';
 import {
   Home, ShoppingBag, Calendar, Wallet, Bell, Settings as SettingsIcon, LogOut,
   Shield, Users, BarChart3, Package, X, User, Menu, Sun, Moon,
@@ -60,8 +62,19 @@ class ErrorBoundary extends Component {
 }
 
 function App() {
+  const queryClient = useQueryClient();
   const [dbReady, setDbReady] = useState(false);
-  const [loggedIn, setLoggedInState] = useState(false);
+  const [loggedIn, setLoggedInState] = useState(isLoggedIn());
+
+  const { data: userData, isLoading: userLoading, error: userError } = useQuery({
+    queryKey: ['user'],
+    queryFn: fetchUser,
+    enabled: loggedIn,
+    retry: false,
+  });
+
+  const user = userData?.user;
+
   const [role, setRole] = useState('customer');
   const [page, setPage] = useState('dashboard');
   const [showNotifs, setShowNotifs] = useState(false);
@@ -119,58 +132,57 @@ function App() {
 
   useEffect(() => {
     initDB();
-    const checkAuthAndSync = async () => {
-      if (isLoggedIn()) {
-        await syncWithBackend();
-      }
-      setDbReady(true);
-      setLoggedInState(isLoggedIn());
-      const user = readDB()?.user;
-      if (user?.language) setLang(user.language);
-      if (user?.role) {
-        setRole(user.role);
-        if (user.role === 'admin') setPage('admin');
-        else if (user.role === 'seller') setPage('seller');
+    setDbReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (userError) {
+      console.warn("Auth error, logging out...", userError);
+      handleLogout();
+    }
+  }, [userError]);
+
+  useEffect(() => {
+    if (user) {
+      if (user.language) setLang(user.language);
+      if (user.role) {
+        const lowerRole = user.role.toLowerCase();
+        setRole(lowerRole);
+        if (lowerRole === 'admin') setPage('admin');
+        else if (lowerRole === 'seller') setPage('seller');
         else setPage('dashboard');
       }
-    };
-    checkAuthAndSync();
-  }, []);
+    }
+  }, [user]);
 
   const refreshNotifs = useCallback(() => {
     setUnreadCount(getUnreadCount());
     setNotifications(getNotifications());
-    const user = getUser();
     if (user?.language) setLang(user.language);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (loggedIn) refreshNotifs();
   }, [loggedIn, refreshNotifs, refreshKey]);
 
   const handleRefresh = () => {
+    queryClient.invalidateQueries();
     setRefreshKey(k => k + 1);
     refreshNotifs();
   };
 
   const handleLogin = async () => {
-    await syncWithBackend();
     setLoggedInState(true);
-    const user = readDB()?.user;
-    if (user?.role) {
-      setRole(user.role);
-      if (user.role === 'admin') setPage('admin');
-      else if (user.role === 'seller') setPage('seller');
-      else setPage('dashboard');
-    }
+    await queryClient.invalidateQueries();
     refreshNotifs();
   };
 
-  const handleLogout = () => {
-    setLoggedIn(false);
+  const handleLogout = async () => {
+    await setLoggedIn(false);
     setLoggedInState(false);
     setPage('dashboard');
     setRole('customer');
+    queryClient.clear();
   };
 
   const openNotifs = () => {
@@ -200,7 +212,13 @@ function App() {
     );
   }
 
-  const user = getUser();
+  if (loggedIn && userLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-deep)' }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
   const translateNotificationTitle = (title) => {
@@ -439,16 +457,16 @@ function App() {
           </div>
 
           {/* Page Content */}
-          {role === 'customer' && page === 'dashboard' && <CustomerDashboard onRefresh={handleRefresh} lang={lang} onNavigate={setPage} showToast={showToast} />}
-          {role === 'customer' && page === 'holidays' && <HolidayPlanner onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
-          {role === 'customer' && page === 'wallet' && <WalletHub onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
-          {role === 'customer' && page === 'marketplace' && <Marketplace onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
-          {role === 'customer' && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
+          {role === 'customer' && page === 'dashboard' && <CustomerDashboard onRefresh={handleRefresh} lang={lang} onNavigate={setPage} showToast={showToast} user={user} />}
+          {role === 'customer' && page === 'holidays' && <HolidayPlanner onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'customer' && page === 'wallet' && <WalletHub onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'customer' && page === 'marketplace' && <Marketplace onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'customer' && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
           
-          {role === 'seller' && (user.role === 'seller' || user.role === 'admin') && page === 'seller' && <SellerDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
-          {role === 'seller' && (user.role === 'seller' || user.role === 'admin') && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
+          {role === 'seller' && (user?.role === 'seller' || user?.role === 'admin') && page === 'seller' && <SellerDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
+          {role === 'seller' && (user?.role === 'seller' || user?.role === 'admin') && page === 'settings' && <Settings onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
           
-          {role === 'admin' && user.role === 'admin' && <AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} />}
+          {role === 'admin' && user?.role === 'admin' && <AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} />}
         </main>
       </div>
 

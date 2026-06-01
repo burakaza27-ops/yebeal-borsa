@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, MapPin, Weight, Star, Heart, ShoppingCart,
   Truck, User, CheckCircle, X, Package, Calendar,
   Filter, Clock, CreditCard, ArrowUpDown, Users
 } from 'lucide-react';
 import {
-  getAnimals, getOrders, placeOrder, getDeliveryBreakdown,
+  placeOrder, getDeliveryBreakdown,
   formatETB, formatDate, ANIMAL_EMOJIS, ANIMAL_TYPES, DELIVERY_ZONES,
   DELIVERY_TIME_WINDOWS, PAYMENT_METHODS_ORDER, TRANSLATIONS, getPrimaryBalance,
-  toggleFavorite, getFavorites, syncWithBackend, getKirchaPool,
+  toggleFavorite, getKirchaPool,
   cancelOrder, rateOrder, createSupportTicket
 } from '../db';
+import { fetchAnimals, fetchOrders, fetchFavorites, fetchWallets } from '../api';
 
 // Helper: read a value from sessionStorage with a fallback default
 const ssGet = (key, fallback) => {
@@ -18,10 +20,17 @@ const ssGet = (key, fallback) => {
   catch { return fallback; }
 };
 
-export default function Marketplace({ onRefresh, lang, showToast }) {
-  const [animals, setAnimals] = useState(getAnimals());
-  const [orders, setOrders] = useState(getOrders());
-  const [favorites, setFavorites] = useState(getFavorites());
+export default function Marketplace({ lang, showToast }) {
+  const queryClient = useQueryClient();
+
+  const { data: animalsRaw = { animals: [] } } = useQuery({ queryKey: ['animals'], queryFn: fetchAnimals });
+  const { data: ordersRaw = [] } = useQuery({ queryKey: ['orders'], queryFn: fetchOrders });
+  const { data: favoritesRaw = [] } = useQuery({ queryKey: ['favorites'], queryFn: fetchFavorites });
+  const { data: walletsRaw = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
+
+  const animals = (animalsRaw.animals || animalsRaw || []).filter(a => a.isActive && a.isApproved);
+  const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
+  const favorites = Array.isArray(favoritesRaw) ? favoritesRaw : [];
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState(() => ssGet('search', ''));
   const [typeFilter, setTypeFilter] = useState(() => ssGet('typeFilter', 'all'));
@@ -147,11 +156,7 @@ export default function Marketplace({ onRefresh, lang, showToast }) {
 
   const refresh = async () => {
     setLoading(true);
-    await syncWithBackend();
-    setAnimals(getAnimals());
-    setOrders(getOrders());
-    setFavorites(getFavorites());
-    if (onRefresh) onRefresh();
+    await queryClient.invalidateQueries();
     setTimeout(() => setLoading(false), 600);
   };
 

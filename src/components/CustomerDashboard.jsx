@@ -1,21 +1,30 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Wallet, TrendingUp, Clock, Gift, ArrowUpRight, ArrowDownRight,
   Plus, CreditCard, Smartphone, Building2, ChevronRight, PiggyBank,
   DollarSign
 } from 'lucide-react';
 import {
-  getUser, getWallets, getTransactions, getCustomerHolidays,
-  getHolidays, makeDeposit, formatETB, formatDateTime, getTierInfo,
-  daysUntil, getAnalytics, ANIMAL_EMOJIS, TRANSLATIONS, syncWithBackend
+  makeDeposit, formatETB, formatDateTime, getTierInfo,
+  daysUntil, getAnalytics, ANIMAL_EMOJIS, TRANSLATIONS
 } from '../db';
+import { fetchWallets, fetchTransactions, fetchHolidays, fetchCustomerHolidays } from '../api';
+import { apiFetch } from '../db';
 
-export default function CustomerDashboard({ onRefresh, lang, showToast }) {
-  const [user, setUser] = useState(getUser());
-  const [wallets, setWallets] = useState(getWallets());
-  const [transactions, setTransactions] = useState(getTransactions());
-  const [customerHolidays, setCustomerHolidays] = useState(getCustomerHolidays());
-  const [holidays, setHolidays] = useState(getHolidays());
+export default function CustomerDashboard({ lang, showToast, user }) {
+  const queryClient = useQueryClient();
+
+  const { data: wallets = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
+  const { data: transactionsRaw = {} } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
+  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
+  const { data: customerHolidays = [] } = useQuery({
+    queryKey: ['customer-holidays'],
+    queryFn: fetchCustomerHolidays,
+  });
+
+  const transactions = transactionsRaw.transactions || transactionsRaw || [];
+
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
   const [depositMethod, setDepositMethod] = useState('Telebirr');
@@ -26,7 +35,7 @@ export default function CustomerDashboard({ onRefresh, lang, showToast }) {
   const [loading, setLoading] = useState(false);
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-  const analytics = getAnalytics();
+  const analytics = getAnalytics(transactions);
 
   const translateAnimal = (type) => lang === 'am' ? { sheep: 'በግ', goat: 'ፍየል', cattle: 'ከብት', hen: 'ዶሮ', kircha: 'ኪርቻ' }[type] || type : type;
   const translateMethod = (m) => {
@@ -50,15 +59,8 @@ export default function CustomerDashboard({ onRefresh, lang, showToast }) {
     };
     return map[type] || type;
   };
-
   const refresh = async () => {
-    await syncWithBackend();
-    setUser(getUser());
-    setWallets(getWallets());
-    setTransactions(getTransactions());
-    setCustomerHolidays(getCustomerHolidays());
-    setHolidays(getHolidays());
-    if (onRefresh) onRefresh();
+    await queryClient.invalidateQueries();
   };
 
   const primaryWallet = wallets.find(w => !w.isFamily);

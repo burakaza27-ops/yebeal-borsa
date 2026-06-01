@@ -1,16 +1,24 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar, Target, ChevronRight, Plus, CheckCircle, X, Trash2
 } from 'lucide-react';
 import {
-  getHolidays, getCustomerHolidays, addCustomerHoliday, depositToHoliday,
-  cancelHolidayGoal, getWallets, formatETB, daysUntil, ANIMAL_EMOJIS, ANIMAL_TYPES,
-  TRANSLATIONS, syncWithBackend
+  addCustomerHoliday, depositToHoliday,
+  cancelHolidayGoal, formatETB, daysUntil, ANIMAL_EMOJIS, ANIMAL_TYPES,
+  TRANSLATIONS, apiFetch
 } from '../db';
+import { fetchHolidays, fetchWallets, fetchCustomerHolidays } from '../api';
 
-export default function HolidayPlanner({ onRefresh, lang, showToast }) {
-  const [holidays, setHolidays] = useState(getHolidays());
-  const [customerHolidays, setCustomerHolidays] = useState(getCustomerHolidays());
+export default function HolidayPlanner({ lang, showToast }) {
+  const queryClient = useQueryClient();
+
+  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
+  const { data: customerHolidays = [] } = useQuery({
+    queryKey: ['customer-holidays'],
+    queryFn: fetchCustomerHolidays,
+  });
+
   const [selectedHoliday, setSelectedHoliday] = useState(null);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -27,10 +35,7 @@ export default function HolidayPlanner({ onRefresh, lang, showToast }) {
   const translateAnimal = (type) => lang === 'am' ? { sheep: 'በግ', goat: 'ፍየል', cattle: 'ከብት', hen: 'ዶሮ', kircha: 'ኪርቻ' }[type] || type : type;
 
   const refresh = async () => {
-    await syncWithBackend();
-    setHolidays(getHolidays());
-    setCustomerHolidays(getCustomerHolidays());
-    if (onRefresh) onRefresh();
+    await queryClient.invalidateQueries();
   };
 
   const enriched = holidays.map(h => {
@@ -140,7 +145,7 @@ export default function HolidayPlanner({ onRefresh, lang, showToast }) {
     return { months, weeks, days: finalDays };
   };
 
-  const wallets = getWallets();
+  const { data: wallets = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
   const primary = wallets.find(w => !w.isFamily);
 
   return (
