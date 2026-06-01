@@ -14,12 +14,15 @@ import { fetchSellerOrders, fetchSellerAnimals, fetchWallets, fetchTransactions 
 export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
 
-  const { data: walletData = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
-  const { data: transactionsData = [] } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
-  const { data: orders = [] } = useQuery({ queryKey: ['seller-orders'], queryFn: fetchSellerOrders });
+  const { data: walletDataRaw = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
+  const walletData = Array.isArray(walletDataRaw) ? walletDataRaw : (walletDataRaw?.wallets || []);
+  const { data: transactionsRaw = [] } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
+  const transactionsData = Array.isArray(transactionsRaw) ? transactionsRaw : (transactionsRaw?.transactions || []);
+  const { data: ordersRaw = [] } = useQuery({ queryKey: ['seller-orders'], queryFn: fetchSellerOrders });
+  const orders = Array.isArray(ordersRaw) ? ordersRaw : (ordersRaw?.orders || []);
   const { data: sellerAnimalsData = { animals: [] } } = useQuery({ queryKey: ['seller-animals'], queryFn: fetchSellerAnimals });
   
-  const listings = sellerAnimalsData.animals || [];
+  const listings = Array.isArray(sellerAnimalsData) ? sellerAnimalsData : (sellerAnimalsData?.animals || []);
   const wallet = walletData.find(w => !w.isFamily) || null;
   const transactions = wallet ? transactionsData.filter(t => t.walletId === wallet.id) : [];
 

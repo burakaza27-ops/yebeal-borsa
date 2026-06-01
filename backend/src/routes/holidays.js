@@ -59,30 +59,45 @@ router.post('/goals', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: 'Holiday not found.' });
     }
 
-    // Check if user already has an active goal for this holiday
-    const existing = await req.prisma.customerHoliday.findFirst({
-      where: { userId: req.user.id, holidayId, status: 'active' },
-    });
-    if (existing) {
-      return res.status(409).json({ error: 'You already have an active goal for this holiday.' });
-    }
-
     // Check target meets minimum
     if (validatedTargetAmount < holiday.minimumDeposit) {
       return res.status(400).json({ error: `Target amount must be at least ${holiday.minimumDeposit} ETB.` });
     }
 
-    const goal = await req.prisma.customerHoliday.create({
-      data: {
-        userId: req.user.id,
-        holidayId,
-        targetAmount: validatedTargetAmount,
-        currentAmount: 0,
-        animalPreference: animalPreference || null,
-        status: 'active',
-      },
-      include: { holiday: true },
+    // Check if user already has a goal for this holiday (active or not)
+    const existing = await req.prisma.customerHoliday.findFirst({
+      where: { userId: req.user.id, holidayId },
     });
+    
+    let goal;
+    if (existing) {
+      if (existing.status === 'active') {
+        return res.status(409).json({ error: 'You already have an active goal for this holiday.' });
+      }
+      // Recycle the cancelled/completed goal
+      goal = await req.prisma.customerHoliday.update({
+        where: { id: existing.id },
+        data: {
+          targetAmount: validatedTargetAmount,
+          currentAmount: 0, // Reset progress for the new goal
+          animalPreference: animalPreference || null,
+          status: 'active',
+        },
+        include: { holiday: true },
+      });
+    } else {
+      goal = await req.prisma.customerHoliday.create({
+        data: {
+          userId: req.user.id,
+          holidayId,
+          targetAmount: validatedTargetAmount,
+          currentAmount: 0,
+          animalPreference: animalPreference || null,
+          status: 'active',
+        },
+        include: { holiday: true },
+      });
+    }
 
     res.status(201).json(goal);
   } catch (err) {

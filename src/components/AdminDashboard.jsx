@@ -26,19 +26,31 @@ import {
 export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
 
-  const { data: customers = [] } = useQuery({ queryKey: ['admin-customers'], queryFn: fetchAdminCustomers });
-  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
-  const { data: animals = [] } = useQuery({ queryKey: ['animals'], queryFn: fetchAnimals });
-  const { data: notifications = [] } = useQuery({ queryKey: ['notifications'], queryFn: fetchNotifications });
-  const { data: withdrawals = [] } = useQuery({ queryKey: ['admin-withdrawals'], queryFn: fetchAdminWithdrawals });
-  const { data: auditLog = [] } = useQuery({ queryKey: ['admin-audit'], queryFn: fetchAdminAuditLogs });
-  const { data: zones = [] } = useQuery({ queryKey: ['zones'], queryFn: fetchDeliveryZones });
+  const { data: customersRaw = [] } = useQuery({ queryKey: ['admin-customers'], queryFn: fetchAdminCustomers });
+  const customers = Array.isArray(customersRaw) ? customersRaw : (customersRaw?.customers || []);
+  const { data: holidaysRaw = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
+  const holidays = Array.isArray(holidaysRaw) ? holidaysRaw : (holidaysRaw?.holidays || []);
+  const { data: animalsRaw = [] } = useQuery({ queryKey: ['animals'], queryFn: fetchAnimals });
+  const animals = Array.isArray(animalsRaw) ? animalsRaw : (animalsRaw?.animals || []);
+  const { data: notificationsRaw = [] } = useQuery({ queryKey: ['notifications'], queryFn: fetchNotifications });
+  const notifications = Array.isArray(notificationsRaw) ? notificationsRaw : (notificationsRaw?.notifications || []);
+  const { data: withdrawalsRaw = [] } = useQuery({ queryKey: ['admin-withdrawals'], queryFn: fetchAdminWithdrawals });
+  const withdrawals = Array.isArray(withdrawalsRaw) ? withdrawalsRaw : (withdrawalsRaw?.withdrawals || []);
+  const { data: auditLogRaw = [] } = useQuery({ queryKey: ['admin-audit'], queryFn: fetchAdminAuditLogs });
+  const auditLog = Array.isArray(auditLogRaw) ? auditLogRaw : (auditLogRaw?.auditLog || []);
+  const { data: zonesRaw = [] } = useQuery({ queryKey: ['zones'], queryFn: fetchDeliveryZones });
+  const zones = Array.isArray(zonesRaw) ? zonesRaw : (zonesRaw?.zones || []);
 
-  const { data: payouts = [] } = useQuery({ queryKey: ['payouts'], queryFn: fetchPayouts });
-  const { data: refunds = [] } = useQuery({ queryKey: ['refunds'], queryFn: fetchRefunds });
-  const { data: tickets = [] } = useQuery({ queryKey: ['tickets'], queryFn: fetchTickets });
-  const { data: marketPrices = [] } = useQuery({ queryKey: ['market-prices'], queryFn: fetchMarketPrices });
-  const { data: priceHistory = [] } = useQuery({ queryKey: ['price-history'], queryFn: fetchPriceHistory });
+  const { data: payoutsRaw = [] } = useQuery({ queryKey: ['payouts'], queryFn: fetchPayouts });
+  const payouts = Array.isArray(payoutsRaw) ? payoutsRaw : (payoutsRaw?.payouts || []);
+  const { data: refundsRaw = [] } = useQuery({ queryKey: ['refunds'], queryFn: fetchRefunds });
+  const refunds = Array.isArray(refundsRaw) ? refundsRaw : (refundsRaw?.refunds || []);
+  const { data: ticketsRaw = [] } = useQuery({ queryKey: ['tickets'], queryFn: fetchTickets });
+  const tickets = Array.isArray(ticketsRaw) ? ticketsRaw : (ticketsRaw?.tickets || []);
+  const { data: marketPricesRaw = [] } = useQuery({ queryKey: ['market-prices'], queryFn: fetchMarketPrices });
+  const marketPrices = Array.isArray(marketPricesRaw) ? marketPricesRaw : (marketPricesRaw?.marketPrices || []);
+  const { data: priceHistoryRaw = [] } = useQuery({ queryKey: ['price-history'], queryFn: fetchPriceHistory });
+  const priceHistory = Array.isArray(priceHistoryRaw) ? priceHistoryRaw : (priceHistoryRaw?.priceHistory || []);
 
   const [activeSection, setActiveSection] = useState(() => {
     return sessionStorage.getItem('adminDashboardActiveSection') || 'overview';
