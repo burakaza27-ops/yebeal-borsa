@@ -51,7 +51,16 @@ if (!process.env.VERCEL) {
 const app = express();
 
 const globalForPrisma = globalThis;
-const prisma = globalForPrisma.prisma || new PrismaClient();
+let dbUrl = process.env.DATABASE_URL || '';
+// Prevent Vercel Serverless Functions from exhausting Neon DB connection limit
+if (dbUrl && !dbUrl.includes('connection_limit')) {
+  dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=1&pool_timeout=10';
+}
+const prisma = globalForPrisma.prisma || new PrismaClient({
+  datasources: {
+    db: { url: dbUrl }
+  }
+});
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 const PORT = process.env.PORT || 3001;

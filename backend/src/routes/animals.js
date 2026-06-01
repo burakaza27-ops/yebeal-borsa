@@ -121,6 +121,20 @@ router.get('/', optionalAuth, async (req, res, next) => {
   }
 });
 
+// ─── GET /api/animals/favorites/list — User's favs
+router.get('/favorites/list', authenticate, async (req, res, next) => {
+  try {
+    const favorites = await req.prisma.favorite.findMany({
+      where: { userId: req.user.id },
+      include: { animal: true },
+    });
+
+    res.json(favorites.map(f => ({ ...f.animal, isFavorite: true })));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/animals/:id — Single animal ────────
 router.get('/:id', optionalAuth, async (req, res, next) => {
   try {
@@ -143,6 +157,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
     next(err);
   }
 });
+
 
 // ─── POST /api/animals — Add listing ─────────────
 router.post('/', authenticate, requireSellerOrAdmin, async (req, res, next) => {
@@ -225,19 +240,6 @@ router.post('/:id/favorite', authenticate, async (req, res, next) => {
   }
 });
 
-// ─── GET /api/animals/favorites/list — User's favs
-router.get('/favorites/list', authenticate, async (req, res, next) => {
-  try {
-    const favorites = await req.prisma.favorite.findMany({
-      where: { userId: req.user.id },
-      include: { animal: true },
-    });
-
-    res.json(favorites.map(f => ({ ...f.animal, isFavorite: true })));
-  } catch (err) {
-    next(err);
-  }
-});
 
 // ─── POST /api/animals/:id/reserve ───────────────
 router.post('/:id/reserve', authenticate, async (req, res, next) => {
