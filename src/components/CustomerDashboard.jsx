@@ -23,7 +23,7 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
     queryFn: fetchCustomerHolidays,
   });
 
-  const transactions = transactionsRaw.transactions || transactionsRaw || [];
+  const transactions = Array.isArray(transactionsRaw) ? transactionsRaw : (transactionsRaw?.transactions || []);
 
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');

@@ -28,7 +28,8 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
   const { data: favoritesRaw = [] } = useQuery({ queryKey: ['favorites'], queryFn: fetchFavorites });
   const { data: walletsRaw = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
 
-  const animals = (animalsRaw.animals || animalsRaw || []).filter(a => a.isActive && a.isApproved);
+  const animalsList = Array.isArray(animalsRaw) ? animalsRaw : (animalsRaw?.animals || []);
+  const animals = animalsList.filter(a => a.isActive && a.isApproved);
   const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
   const favorites = Array.isArray(favoritesRaw) ? favoritesRaw : [];
   const [loading, setLoading] = useState(false);

@@ -17,7 +17,7 @@ export default function WalletHub({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
   const { data: wallets = [] } = useQuery({ queryKey: ['wallets'], queryFn: fetchWallets });
   const { data: transactionsRaw = [] } = useQuery({ queryKey: ['transactions'], queryFn: fetchTransactions });
-  const transactions = transactionsRaw.transactions || transactionsRaw || [];
+  const transactions = Array.isArray(transactionsRaw) ? transactionsRaw : (transactionsRaw?.transactions || []);
   const { data: withdrawals = [] } = useQuery({ queryKey: ['withdrawals'], queryFn: fetchWithdrawals });
   const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
   const { data: orders = [] } = useQuery({ queryKey: ['orders'], queryFn: fetchOrders });
