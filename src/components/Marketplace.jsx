@@ -161,12 +161,23 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
     setTimeout(() => setLoading(false), 600);
   };
 
+  const handleToggleFavorite = async (e, animalId) => {
+    e.stopPropagation();
+    try {
+      await toggleFavorite(animalId);
+      await refresh();
+      if (showToast) showToast(lang === 'am' ? 'የተወዳጆች ዝርዝር ተዘምኗል' : 'Favorites updated', 'success');
+    } catch (err) {
+      if (showToast) showToast(err.message || 'Failed to update favorites', 'error');
+    }
+  };
+
   const locations = [...new Set(animals.map(a => a.locationArea))];
 
   const filtered = animals
     .filter(a => {
       if (!a.isApproved) return false;
-      if (typeFilter !== 'all' && a.type !== typeFilter) return false;
+      if (typeFilter !== 'all' && a.type.toLowerCase() !== typeFilter.toLowerCase()) return false;
       if (locationFilter !== 'all' && a.locationArea !== locationFilter) return false;
       if (ratingFilter === '4.5+' && a.sellerRating < 4.5) return false;
       if (ratingFilter === '4.7+' && a.sellerRating < 4.7) return false;

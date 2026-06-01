@@ -471,7 +471,7 @@ function App() {
       </div>
 
       {/* Role Switcher — Restricted to permitted roles */}
-      {user && user.role && user.role !== 'customer' && (
+      {user && user.role && user.role.toLowerCase() !== 'customer' && (
         <div className="role-switcher" role="tablist" aria-label="Switch role">
           <button
             className={`role-btn ${role === 'customer' ? 'active' : ''}`}
@@ -483,7 +483,7 @@ function App() {
             <User size={14} /> {lang === 'am' ? 'ደንበኛ' : 'Customer'}
           </button>
           
-          {(user.role === 'seller' || user.role === 'admin') && (
+          {(user.role.toLowerCase() === 'seller' || user.role.toLowerCase() === 'admin') && (
             <button
               className={`role-btn ${role === 'seller' ? 'active' : ''}`}
               onClick={() => { setRole('seller'); setPage('seller'); }}
@@ -495,7 +495,7 @@ function App() {
             </button>
           )}
 
-          {user.role === 'admin' && (
+          {user.role.toLowerCase() === 'admin' && (
             <button
               className={`role-btn ${role === 'admin' ? 'active' : ''}`}
               onClick={() => { setRole('admin'); setPage('admin'); }}
