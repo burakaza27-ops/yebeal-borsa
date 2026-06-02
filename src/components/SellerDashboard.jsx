@@ -68,6 +68,9 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
   // Payout Form State
   const [payoutAmount, setPayoutAmount] = useState('');
   const [payoutReason, setPayoutReason] = useState('');
+  const [withdrawalMethod, setWithdrawalMethod] = useState('TELEBIRR');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
@@ -202,8 +205,25 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
       return;
     }
 
+    if (!accountNumber) {
+      showToast(lang === 'am' ? 'የአካውንት/ስልክ ቁጥር ያስገቡ' : 'Please enter an account/phone number', 'error');
+      return;
+    }
+
+    if (withdrawalMethod === 'BANK_TRANSFER' && !accountName) {
+      showToast(lang === 'am' ? 'የአካውንት ስም ያስገቡ' : 'Please enter account holder name', 'error');
+      return;
+    }
+
     try {
-      await requestWithdrawal(wallet.id, parseFloat(payoutAmount), payoutReason || 'Seller payout');
+      await requestWithdrawal(
+        wallet.id, 
+        parseFloat(payoutAmount), 
+        payoutReason || 'Seller payout',
+        withdrawalMethod,
+        accountNumber,
+        accountName
+      );
       showToast(
         lang === 'am'
           ? 'የክፍያ ጥያቄ በተሳካ ሁኔታ ተልኳል! አስተዳዳሪው በቅርቡ ያረጋግጥለታል።'
@@ -213,6 +233,8 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
       setShowPayoutModal(false);
       setPayoutAmount('');
       setPayoutReason('');
+      setAccountNumber('');
+      setAccountName('');
       handleRefresh();
     } catch (err) {
       showToast(err.message || 'Failed to request payout', 'error');
@@ -862,7 +884,11 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
           }}>
             <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
               <h3 style={{ fontWeight: 800 }}>💵 {lang === 'am' ? 'ገንዘብ ማውጣት ጠይቅ' : 'Request Payout Withdrawal'}</h3>
-              <button className="btn btn-ghost" onClick={() => setShowPayoutModal(false)} style={{ padding: 4 }}>✕</button>
+              <button className="btn btn-ghost" onClick={() => {
+                setShowPayoutModal(false);
+                setAccountNumber('');
+                setAccountName('');
+              }} style={{ padding: 4 }}>✕</button>
             </div>
             
             <form onSubmit={handleRequestPayout} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -884,6 +910,81 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
                     : `Maximum available for withdrawal: ${wallet ? formatETB(wallet.balance) : '0.00 ETB'}`}
                 </small>
               </div>
+
+              {/* Payout method cards */}
+              <div className="form-group">
+                <label className="form-label">{lang === 'am' ? 'የመክፈያ ዘዴ ይምረጡ' : 'Select Method'}</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                  {[
+                    { key: 'TELEBIRR', label: 'Telebirr', icon: '📱', color: '#0066cc', bg: 'hsla(210,100%,50%,0.08)' },
+                    { key: 'CBE_BIRR', label: 'CBE Birr', icon: '🏦', color: '#008000', bg: 'hsla(120,100%,25%,0.08)' },
+                    { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: '🏧', color: '#cc6600', bg: 'hsla(30,100%,40%,0.08)' }
+                  ].map(method => {
+                    const isSelected = withdrawalMethod === method.key;
+                    return (
+                      <button
+                        key={method.key}
+                        type="button"
+                        onClick={() => {
+                          setWithdrawalMethod(method.key);
+                          setAccountNumber('');
+                          setAccountName('');
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '12px 8px',
+                          borderRadius: 'var(--radius-md)',
+                          border: isSelected ? `2px solid ${method.color}` : '2px solid var(--border-color)',
+                          background: isSelected ? method.bg : 'var(--card-bg)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)'
+                        }}
+                      >
+                        <span style={{ fontSize: '1.4rem', marginBottom: 4 }}>{method.icon}</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{method.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Account Number or Phone Input */}
+              <div className="form-group">
+                <label className="form-label">
+                  {withdrawalMethod === 'BANK_TRANSFER' ? (lang === 'am' ? 'የባንክ አካውንት ቁጥር' : 'Bank Account Number') : (lang === 'am' ? 'የስልክ ቁጥር' : 'Phone Number')}
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder={
+                    withdrawalMethod === 'BANK_TRANSFER'
+                      ? 'e.g. 1000123456789'
+                      : 'e.g. 0911234567'
+                  }
+                  value={accountNumber}
+                  onChange={e => setAccountNumber(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* Account Name (Only for Bank) */}
+              {withdrawalMethod === 'BANK_TRANSFER' && (
+                <div className="form-group">
+                  <label className="form-label">{lang === 'am' ? 'የአካውንት ስም' : 'Account Holder Name'}</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Abebe Kebede"
+                    value={accountName}
+                    onChange={e => setAccountName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">{lang === 'am' ? 'የማውጫ ምክንያት' : 'Reason for Withdrawal'}</label>
