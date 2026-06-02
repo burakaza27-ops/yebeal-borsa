@@ -19,6 +19,7 @@ export default function AuthPortal({ onLogin, lang = 'en', showToast }) {
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regGender, setRegGender] = useState('Male');
   const [regPassword, setRegPassword] = useState('');
   const [regCity, setRegCity] = useState('Addis Ababa');
   const [regFaydaId, setRegFaydaId] = useState('');
@@ -71,6 +72,7 @@ export default function AuthPortal({ onLogin, lang = 'en', showToast }) {
         faydaId: regFaydaId,
         region: 'Addis Ababa',
         city: regCity,
+        gender: regGender,
         holidayId: regHolidayId,
         holidayTargetAmount: regHolidayAmount ? parseFloat(regHolidayAmount) : null,
         holidayAnimalPreference: regHolidayPreference
@@ -237,6 +239,13 @@ export default function AuthPortal({ onLogin, lang = 'en', showToast }) {
                 <div className="form-group">
                   <label className="form-label">{lang === 'am' ? 'ኢሜይል (ከተፈለገ)' : 'Email Address (Optional)'}</label>
                   <input type="email" className="form-input" placeholder="name@email.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{t.gender}</label>
+                  <select className="form-input" value={regGender} onChange={e => setRegGender(e.target.value)}>
+                    <option value="Male">{t.genderMale}</option>
+                    <option value="Female">{t.genderFemale}</option>
+                  </select>
                 </div>
                 <button
                   className="btn btn-primary btn-block btn-lg"

@@ -15,13 +15,13 @@ const router = Router();
 const registerSchema = z.object({
   phone: z.string().regex(/^(\+251|0)(9|7)\d{8}$/, 'Invalid Ethiopian phone number'),
   fullName: z.string().min(2, 'Full name is required'),
-  fullNameAmharic: z.string().optional(),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  fullNameAmharic: z.string().nullable().optional(),
+  email: z.string().email('Invalid email').nullable().optional().or(z.literal('')).or(z.null()),
   password: z.string().min(8, 'Password must be at least 8 characters').regex(/[A-Z]/, 'Must contain uppercase').regex(/[0-9]/, 'Must contain number'),
-  faydaId: z.string().optional(),
-  gender: z.string().optional(),
-  region: z.string().optional(),
-  city: z.string().optional(),
+  faydaId: z.string().nullable().optional(),
+  gender: z.string().nullable().optional(),
+  region: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
 });
 
 const loginSchema = z.object({
