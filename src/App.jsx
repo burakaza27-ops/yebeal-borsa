@@ -375,23 +375,21 @@ function App() {
               </button>
             ))}
 
-            {role === 'customer' && (
-              <>
-                <div className="sidebar-section-label" style={{ marginTop: 8 }}>
-                  {t.quickActions}
-                </div>
-                <button
-                  className="nav-item"
-                  onClick={openNotifs}
-                  id="nav-notifications"
-                  aria-label="Notifications"
-                >
-                  <span className="nav-icon"><Bell size={18} /></span>
-                  {t.notifications}
-                  {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
-                </button>
-              </>
-            )}
+            <>
+              <div className="sidebar-section-label" style={{ marginTop: 8 }}>
+                {t.quickActions}
+              </div>
+              <button
+                className="nav-item"
+                onClick={openNotifs}
+                id="nav-notifications"
+                aria-label="Notifications"
+              >
+                <span className="nav-icon"><Bell size={18} /></span>
+                {t.notifications}
+                {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
+              </button>
+            </>
           </nav>
 
           {/* User section */}

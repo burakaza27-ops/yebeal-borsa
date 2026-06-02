@@ -1306,6 +1306,7 @@ export async function onboardPartner(phone, fullName, password, role) {
   return res;
 }
 
+
 export async function getPendingPayouts() {
   return await apiFetch('/admin/payouts/pending');
 }

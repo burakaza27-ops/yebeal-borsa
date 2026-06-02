@@ -102,6 +102,44 @@ router.post('/customers/:id/role', async (req, res, next) => {
   }
 });
 
+// ─── POST /api/admin/holidays ─────────────────────
+router.post('/holidays', async (req, res, next) => {
+  try {
+    const { name, nameEn, deadline, minimumDeposit, animalTypes, color, icon, description } = req.body;
+    
+    if (!name || !nameEn || !deadline || !minimumDeposit || !animalTypes || animalTypes.length === 0) {
+      return res.status(400).json({ error: 'Name, English Name, deadline, minimum deposit, and animal types are required.' });
+    }
+
+    const holiday = await req.prisma.holiday.create({
+      data: {
+        name,
+        nameEn,
+        deadline: new Date(deadline),
+        minimumDeposit: parseFloat(minimumDeposit),
+        animalTypes,
+        color: color || 'blue',
+        icon: icon || '📅',
+        description,
+        isActive: true
+      }
+    });
+
+    await req.prisma.auditLog.create({
+      data: {
+        adminId: req.user.id,
+        action: 'CREATE_HOLIDAY',
+        target: holiday.id,
+        details: `Created new holiday: ${name} (${nameEn})`,
+      },
+    });
+
+    res.status(201).json(holiday);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/admin/animals/pending ───────────────
 router.get('/animals/pending', async (req, res, next) => {
   try {
@@ -126,6 +164,10 @@ router.post('/animals/:id/approve', async (req, res, next) => {
     const animal = await req.prisma.animal.findUnique({ where: { id } });
     if (!animal) {
       return res.status(404).json({ error: 'Animal listing not found.' });
+    }
+
+    if (animal.sellerId === req.user.id) {
+      return res.status(403).json({ error: 'Separation of Duties: You cannot approve your own animal listing.' });
     }
 
     const updated = await req.prisma.animal.update({
@@ -167,6 +209,10 @@ router.post('/animals/:id/reject', async (req, res, next) => {
     const animal = await req.prisma.animal.findUnique({ where: { id } });
     if (!animal) {
       return res.status(404).json({ error: 'Animal listing not found.' });
+    }
+
+    if (animal.sellerId === req.user.id) {
+      return res.status(403).json({ error: 'Separation of Duties: You cannot reject your own animal listing.' });
     }
 
     const updated = await req.prisma.animal.update({
@@ -601,6 +647,10 @@ router.post('/payouts/process', async (req, res, next) => {
       return res.status(400).json({ error: 'Seller ID is required to process payouts.' });
     }
 
+    if (sellerId === req.user.id) {
+      return res.status(403).json({ error: 'Separation of Duties: You cannot process your own escrow payouts.' });
+    }
+
     const result = await req.prisma.$transaction(async (tx) => {
       // Get all orders with pending refund requests so we can exclude them
       const pendingRefundOrderIds = (await tx.refundRequest.findMany({
@@ -762,11 +812,20 @@ router.get('/tickets', async (req, res, next) => {
 router.post('/tickets/:id/resolve', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const ticket = await req.prisma.supportTicket.update({
+    const ticket = await req.prisma.supportTicket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found.' });
+    }
+
+    if (ticket.userId === req.user.id) {
+      return res.status(403).json({ error: 'Separation of Duties: You cannot resolve your own support ticket.' });
+    }
+
+    const updated = await req.prisma.supportTicket.update({
       where: { id },
       data: { status: 'RESOLVED' },
     });
-    res.json(ticket);
+    res.json(updated);
   } catch (err) {
     next(err);
   }
@@ -802,7 +861,11 @@ router.post('/refunds/:id/process', async (req, res, next) => {
     const result = await req.prisma.$transaction(async (tx) => {
       const refund = await tx.refundRequest.findUnique({
         where: { id },
-        include: { order: true }
+        include: { 
+          order: {
+            include: { animal: true }
+          }
+        }
       });
 
       if (!refund) {
@@ -811,6 +874,10 @@ router.post('/refunds/:id/process', async (req, res, next) => {
 
       if (refund.status !== 'PENDING') {
         throw new Error('This refund request has already been processed.');
+      }
+
+      if (refund.userId === req.user.id || refund.order.animal.sellerId === req.user.id) {
+        throw new Error('Separation of Duties: You cannot process a refund for an order where you are the buyer or seller.');
       }
 
       if (approve) {

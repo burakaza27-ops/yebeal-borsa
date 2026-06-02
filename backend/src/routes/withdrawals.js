@@ -74,18 +74,7 @@ router.post('/', authenticate, async (req, res, next) => {
     const validatedAmount = parseAndValidateFloat(amount, 'amount', true, 0.01);
 
     const result = await req.prisma.$transaction(async (tx) => {
-      // 1. Block withdrawals if there are active/pending orders
-      const activeOrders = await tx.order.findMany({
-        where: {
-          userId: req.user.id,
-          deliveryStatus: {
-            in: ['PROCESSING', 'VET_INSPECTION', 'IN_TRANSIT', 'PICKUP_READY']
-          }
-        }
-      });
-      if (activeOrders.length > 0) {
-        throw new Error('Cannot withdraw funds while you have active or pending orders.');
-      }
+      // (The active orders blocker was removed here to allow sellers to withdraw available funds)
 
       // Get wallet
       const wallet = await tx.wallet.findUnique({
@@ -194,6 +183,10 @@ router.post('/:id/process', authenticate, requireAdmin, async (req, res, next) =
 
       if (request.status !== 'PENDING') {
         throw new Error('This withdrawal request has already been processed.');
+      }
+
+      if (request.userId === req.user.id) {
+        throw new Error('Separation of Duties: You cannot process your own withdrawal request.');
       }
 
       if (approve) {

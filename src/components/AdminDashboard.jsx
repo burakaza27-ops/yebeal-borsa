@@ -1172,6 +1172,23 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
         </div></div>
       )}
 
+      {/* Add Holiday Modal */}
+      {showAddHoliday && (
+        <div className="modal-overlay" onClick={() => setShowAddHoliday(false)}><div className="modal scale-in" onClick={e => e.stopPropagation()}>
+          <div className="modal-header"><h3>📅 {lang === 'am' ? 'አዲስ በዓል ጨምር' : 'Add New Holiday'}</h3><button className="btn btn-ghost btn-icon" onClick={() => setShowAddHoliday(false)}><X size={18} /></button></div>
+          <div className="modal-body">
+            <div className="grid-2">
+              <div className="form-group"><label className="form-label">{lang === 'am' ? 'የበዓል ስም (አማርኛ)' : 'Holiday Name (Amharic)'}</label><input type="text" className="form-input" placeholder="ፋሲካ" value={newHolidayName} onChange={e => setNewHolidayName(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">{lang === 'am' ? 'የበዓል ስም (እንግሊዝኛ)' : 'Holiday Name (English)'}</label><input type="text" className="form-input" placeholder="Fasika / Easter" value={newHolidayNameEn} onChange={e => setNewHolidayNameEn(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">{lang === 'am' ? 'ቀነ ገደብ' : 'Deadline'}</label><input type="date" className="form-input" value={newHolidayDeadline} onChange={e => setNewHolidayDeadline(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">{lang === 'am' ? 'ዝቅተኛ ተቀማጭ (ብር)' : 'Min. Deposit (ETB)'}</label><input type="number" className="form-input" placeholder="2000" value={newHolidayMinDeposit} onChange={e => setNewHolidayMinDeposit(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">{lang === 'am' ? 'አዶ (Emoji)' : 'Icon (Emoji)'}</label><input type="text" className="form-input" placeholder="🎉" value={newHolidayIcon} onChange={e => setNewHolidayIcon(e.target.value)} /></div>
+            </div>
+          </div>
+          <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowAddHoliday(false)}>{t.cancel}</button><button className="btn btn-primary" onClick={handleAddHoliday}><Plus size={16} /> {lang === 'am' ? 'ጨምር' : 'Add Holiday'}</button></div>
+        </div></div>
+      )}
+
       {/* Add Animal Modal */}
       {showAddAnimal && (
         <div className="modal-overlay" onClick={() => setShowAddAnimal(false)}><div className="modal scale-in" onClick={e => e.stopPropagation()}>

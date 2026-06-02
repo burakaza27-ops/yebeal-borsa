@@ -222,7 +222,7 @@ router.post('/orders/:orderId/complete', authenticate, requireAdmin, async (req,
 
     const order = await req.prisma.order.findUnique({
       where: { id: orderId },
-      include: { deliverySteps: true }
+      include: { deliverySteps: true, animal: true }
     });
 
     if (!order) {
@@ -235,6 +235,10 @@ router.post('/orders/:orderId/complete', authenticate, requireAdmin, async (req,
 
     if (order.deliveryStatus === 'CANCELLED' || order.cancelledAt) {
       return res.status(400).json({ error: 'Cannot complete a cancelled order.' });
+    }
+
+    if (order.userId === req.user.id || order.animal.sellerId === req.user.id) {
+      return res.status(403).json({ error: 'Separation of Duties: You cannot complete an order where you are the buyer or seller.' });
     }
 
     const result = await req.prisma.$transaction(async (tx) => {
