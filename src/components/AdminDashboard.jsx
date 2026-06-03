@@ -765,10 +765,10 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span className={`badge ${wr.status === 'pending' ? 'badge-gold' : wr.status === 'approved' ? 'badge-green' : 'badge-red'}`}>
-                        {wr.status === 'pending' ? (lang === 'am' ? '⏳ በመጠባበቅ ላይ' : '⏳ Pending') : wr.status === 'approved' ? (lang === 'am' ? '✓ የጸደቀ' : '✓ Approved') : (lang === 'am' ? '✗ ውድቅ የተደረገ' : '✗ Rejected')}
+                      <span className={`badge ${wr.status === 'PENDING' ? 'badge-gold' : wr.status === 'APPROVED' ? 'badge-green' : 'badge-red'}`}>
+                        {wr.status === 'PENDING' ? (lang === 'am' ? '⏳ በመጠባበቅ ላይ' : '⏳ Pending') : wr.status === 'APPROVED' ? (lang === 'am' ? '✓ የጸደቀ' : '✓ Approved') : (lang === 'am' ? '✗ ውድቅ የተደረገ' : '✗ Rejected')}
                       </span>
-                      {wr.status === 'pending' && (
+                      {wr.status === 'PENDING' && (
                         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                           <input type="text" className="form-input" placeholder={t.adminNote} value={wrNotes[wr.id] || ''} onChange={e => setWrNotes({ ...wrNotes, [wr.id]: e.target.value })} style={{ padding: '4px 8px', fontSize: '0.75rem', width: 140 }} />
                           <button className="btn btn-success btn-sm" onClick={() => handleProcessWR(wr.id, true)}>{t.approve}</button>

@@ -611,8 +611,8 @@ Net Saved: ${formatETB(analytics.savedMoney)}
               {withdrawals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(wr => (
                 <div key={wr.id} className="card flex items-center justify-between" style={{ padding: '16px 20px' }}>
                   <div className="flex items-center gap-3">
-                    <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: wr.status === 'approved' ? 'var(--green-soft)' : wr.status === 'rejected' ? 'var(--red-soft)' : 'var(--gold-soft)', color: wr.status === 'approved' ? 'var(--green)' : wr.status === 'rejected' ? 'var(--red)' : 'var(--gold)' }}>
-                      {wr.status === 'approved' ? <Check size={18} /> : wr.status === 'rejected' ? <X size={18} /> : <Clock size={18} />}
+                    <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: wr.status === 'APPROVED' ? 'var(--green-soft)' : wr.status === 'REJECTED' ? 'var(--red-soft)' : 'var(--gold-soft)', color: wr.status === 'APPROVED' ? 'var(--green)' : wr.status === 'REJECTED' ? 'var(--red)' : 'var(--gold)' }}>
+                      {wr.status === 'APPROVED' ? <Check size={18} /> : wr.status === 'REJECTED' ? <X size={18} /> : <Clock size={18} />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -644,8 +644,8 @@ Net Saved: ${formatETB(analytics.savedMoney)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span className={`badge ${wr.status === 'approved' ? 'badge-green' : wr.status === 'rejected' ? 'badge-red' : 'badge-gold'}`}>
-                      {wr.status === 'approved' ? (lang === 'am' ? '✓ የጸደቀ' : '✓ Approved') : wr.status === 'rejected' ? (lang === 'am' ? 'ውድቅ የተደረገ' : '✗ Rejected') : (lang === 'am' ? 'በመጠባበቅ ላይ' : '⏳ Pending')}
+                    <span className={`badge ${wr.status === 'APPROVED' ? 'badge-green' : wr.status === 'REJECTED' ? 'badge-red' : 'badge-gold'}`}>
+                      {wr.status === 'APPROVED' ? (lang === 'am' ? '✓ የጸደቀ' : '✓ Approved') : wr.status === 'REJECTED' ? (lang === 'am' ? 'ውድቅ የተደረገ' : '✗ Rejected') : (lang === 'am' ? 'በመጠባበቅ ላይ' : '⏳ Pending')}
                     </span>
                     {wr.adminNote && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>{t.adminNoteLabel}: {wr.adminNote}</div>}
                   </div>
