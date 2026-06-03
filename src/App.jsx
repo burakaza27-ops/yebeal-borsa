@@ -163,7 +163,11 @@ function App() {
   }, [user]);
 
   useEffect(() => {
-    if (loggedIn) refreshNotifs();
+    if (loggedIn) {
+      refreshNotifs();
+      const interval = setInterval(refreshNotifs, 10000);
+      return () => clearInterval(interval);
+    }
   }, [loggedIn, refreshNotifs, refreshKey]);
 
   const handleRefresh = () => {

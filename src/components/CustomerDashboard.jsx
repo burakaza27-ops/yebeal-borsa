@@ -111,7 +111,14 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
     }
     setLoading(true);
     try {
-      await requestWithdrawal(primaryWallet.id, amount, 'User withdrawal request', withdrawMethod, withdrawAccount, user.fullName);
+      const isBank = withdrawMethod.includes('Bank');
+      let backendMethod = 'TELEBIRR';
+      if (withdrawMethod === 'CBE Birr') backendMethod = 'CBE_BIRR';
+      else if (isBank) backendMethod = 'BANK_TRANSFER';
+      
+      const reason = isBank ? `Withdrawal to ${withdrawMethod}` : 'User withdrawal request';
+
+      await requestWithdrawal(primaryWallet.id, amount, reason, backendMethod, withdrawAccount, user.fullName);
       setWithdrawSuccess(true);
       if (showToast) showToast(lang === 'am' ? 'የማውጣት ጥያቄ ቀርቧል!' : 'Withdrawal request submitted!', 'success');
       setTimeout(() => {
