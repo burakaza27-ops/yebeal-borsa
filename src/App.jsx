@@ -321,13 +321,15 @@ function App() {
 
   const getNotifIcon = (type) => {
     const map = {
-      deposit: { bg: 'var(--green-soft)', color: 'var(--green)', icon: <Wallet size={16} /> },
-      holiday: { bg: 'var(--gold-soft)', color: 'var(--gold)', icon: <Calendar size={16} /> },
-      marketplace: { bg: 'var(--blue-soft)', color: 'var(--blue)', icon: <ShoppingBag size={16} /> },
-      order: { bg: 'var(--purple-glow)', color: 'var(--purple)', icon: <Package size={16} /> },
-      delivery: { bg: 'var(--green-soft)', color: 'var(--green)', icon: <Package size={16} /> },
-      system: { bg: 'var(--blue-soft)', color: 'var(--blue)', icon: <Bell size={16} /> },
-      promotion: { bg: 'var(--gold-soft)', color: 'var(--gold)', icon: <Bell size={16} /> },
+      system: { bg: 'var(--blue-soft)', color: 'var(--blue)', icon: '⚙️' },
+      wallet: { bg: 'var(--green-soft)', color: 'var(--green)', icon: '💰' },
+      holiday: { bg: 'var(--gold-soft)', color: 'var(--gold)', icon: '📅' },
+      marketplace: { bg: 'var(--purple-glow)', color: 'var(--purple)', icon: '🛒' },
+      security: { bg: 'var(--red-soft)', color: 'var(--red)', icon: '🔒' },
+      deposit: { bg: 'var(--green-soft)', color: 'var(--green)', icon: '💰' },
+      order: { bg: 'var(--purple-glow)', color: 'var(--purple)', icon: '🛒' },
+      delivery: { bg: 'var(--green-soft)', color: 'var(--green)', icon: '🛒' },
+      promotion: { bg: 'var(--gold-soft)', color: 'var(--gold)', icon: '📅' },
     };
     return map[type] || map.system;
   };

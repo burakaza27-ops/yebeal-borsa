@@ -204,6 +204,10 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
               <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: 4 }}>{t.totalSpent}</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{formatETB(user.totalSpent)}</div>
             </div>
+            <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', gridColumn: '1 / -1' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: 4 }}>{lang === 'am' ? 'የቁጠባ መጠን' : 'Savings Rate'}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--green-bright)' }}>{formatETB(Math.max(0, user.totalDeposits - user.totalSpent))}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -242,8 +246,8 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-            {[100, 500, 1000, 5000].map(amt => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 16 }}>
+            {[100, 500, 1000, 5000, 10000].map(amt => (
               <button
                 key={amt}
                 className="btn btn-secondary btn-sm"
@@ -260,7 +264,8 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
             {[
               { icon: <Smartphone size={14} />, label: t.telebirr, key: 'Telebirr' },
               { icon: <Building2 size={14} />, label: t.cbeBirr, key: 'CBE Birr' },
-              { icon: <CreditCard size={14} />, label: t.bank, key: 'Bank' }
+              { icon: <Smartphone size={14} />, label: 'M-PESA', key: 'M-PESA' },
+              { icon: <CreditCard size={14} />, label: lang === 'am' ? 'ባንክ' : 'Bank Transfer', key: 'Bank' }
             ].map(m => (
               <div
                 key={m.key}
@@ -294,32 +299,44 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {enrichedHolidays.map(ch => (
-                <div key={ch.id} style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 16 }}>
-                  <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                    <div className="flex items-center gap-2">
-                      <span style={{ fontSize: '1.2rem' }}>{ch.holiday.icon}</span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{lang === 'am' ? ch.holiday.name : ch.holiday.nameEn}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {ch.days} {t.daysLeft} · {ANIMAL_EMOJIS[ch.animalPreference]} {translateAnimal(ch.animalPreference)}
-                        </div>
+              {enrichedHolidays.map(ch => {
+                const filledBlocks = Math.round((ch.pct / 100) * 20);
+                const emptyBlocks = 20 - filledBlocks;
+                const progressBarStr = `[${'█'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)}] ${ch.pct}%`;
+                const dailySavingsNeeded = ch.days > 0 ? Math.ceil(ch.remaining / ch.days) : 0;
+                
+                return (
+                  <div key={ch.id} style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 16 }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--gold)' }}>{lang === 'am' ? ch.holiday.name : ch.holiday.nameEn}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {formatDate(ch.holiday.deadline)} - {ch.days} {t.daysLeft}
                       </div>
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: ch.pct >= 100 ? 'var(--green-bright)' : 'var(--gold)' }}>{ch.pct}%</span>
+                    
+                    <div style={{ marginBottom: 8, fontSize: '0.85rem' }}>
+                      <div className="flex justify-between" style={{ marginBottom: 4 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Goal: {formatETB(ch.targetAmount)}</span>
+                        <span>Saved: {formatETB(ch.currentAmount)} ({ch.pct}%)</span>
+                      </div>
+                      <div style={{ fontFamily: 'monospace', letterSpacing: '1px', color: ch.pct >= 100 ? 'var(--green-bright)' : 'var(--gold)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {progressBarStr}
+                      </div>
+                    </div>
+
+                    {ch.remaining > 0 && ch.days > 0 && (
+                      <div style={{ background: 'hsla(45,80%,50%,0.1)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 12 }}>
+                        💡 <strong>Tip:</strong> Save {formatETB(dailySavingsNeeded)}/day to reach your goal.
+                      </div>
+                    )}
+                    {ch.remaining === 0 && (
+                      <div style={{ background: 'var(--green-soft)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', color: 'var(--green-bright)', marginTop: 12 }}>
+                        🎉 Goal Reached!
+                      </div>
+                    )}
                   </div>
-                  <div className="progress-bar" style={{ marginBottom: 8 }}>
-                    <div
-                      className={`progress-fill ${ch.pct >= 100 ? 'green' : ch.pct >= 50 ? 'gold' : 'blue'}`}
-                      style={{ width: `${ch.pct}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    <span>{formatETB(ch.currentAmount)} {t.saved}</span>
-                    <span>{formatETB(ch.remaining)} {t.remaining}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -351,6 +368,51 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
           })}
         </div>
       </div>
+
+      {/* Profile Completeness */}
+      {(() => {
+        const checks = [
+          { label: lang === 'am' ? 'ሙሉ ስም' : 'Full Name', done: !!user.fullName },
+          { label: lang === 'am' ? 'ስልክ ቁጥር (የተረጋገጠ)' : 'Phone Number (Verified)', done: !!user.phone },
+          { label: lang === 'am' ? 'አድራሻ' : 'Address', done: !!user.address },
+          { label: lang === 'am' ? 'የመታወቂያ ማረጋገጫ' : 'ID Verification', done: !!user.faydaId },
+        ];
+        const doneCount = checks.filter(c => c.done).length;
+        const pct = Math.round((doneCount / checks.length) * 100);
+        const filledBlocks = Math.round((pct / 100) * 20);
+        const emptyBlocks = 20 - filledBlocks;
+        const progressBarStr = `[${'█'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)}] ${pct}%`;
+
+        return (
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div className="card-header">
+              <h3>👤 {lang === 'am' ? 'የግል ማህደር ሁኔታ' : 'Profile Completeness'}</h3>
+            </div>
+            <div style={{ padding: 16, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+              <div className="flex justify-between" style={{ marginBottom: 8, fontWeight: 600 }}>
+                <span>{lang === 'am' ? 'የተሞላ' : 'Completeness'}</span>
+                <span style={{ color: pct === 100 ? 'var(--green-bright)' : 'var(--gold)' }}>{pct}%</span>
+              </div>
+              <div style={{ fontFamily: 'monospace', letterSpacing: '1px', color: pct === 100 ? 'var(--green-bright)' : 'var(--gold)', fontSize: '0.75rem', marginBottom: 16 }}>
+                {progressBarStr}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                {checks.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: c.done ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    <span style={{ color: c.done ? 'var(--green-bright)' : 'var(--red)', fontWeight: 800 }}>{c.done ? '✓' : '✗'}</span>
+                    {c.label}
+                  </div>
+                ))}
+              </div>
+              {pct < 100 && (
+                <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={() => onNavigate && onNavigate('settings')}>
+                  {lang === 'am' ? 'ማህደሩን አሟላ' : 'Complete Profile'}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Recent Transactions */}
       <div className="card">

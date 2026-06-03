@@ -130,6 +130,48 @@ const SEED_ANIMALS = [
     sellerId: 'seller6', sellerName: 'Hana Girma', sellerRating: 4.4,
     description: 'Young Woyto-Guji goat. Tender meat, perfect for small family gatherings.',
     healthCertificate: false, availableDate: '2026-06-18', isActive: true, isApproved: true, images: []
+  },
+  {
+    id: 'a13', type: 'sheep', breed: 'Washera', weight: 30, age: '1.5 years',
+    price: 7000, location: { area: 'Gojjam', lat: 10.3333, lng: 37.7500 },
+    sellerId: 'seller1', sellerName: 'Abebe Kebede', sellerRating: 4.8,
+    description: 'Washera sheep from Western Gojjam. Known for fast growth and good meat.',
+    healthCertificate: true, availableDate: '2026-06-05', isActive: true, isApproved: true, images: []
+  },
+  {
+    id: 'a14', type: 'goat', breed: 'Central Highland', weight: 25, age: '1 year',
+    price: 5000, location: { area: 'Addis Ababa', lat: 9.0300, lng: 38.7400 },
+    sellerId: 'seller2', sellerName: 'Fatuma Ali', sellerRating: 4.6,
+    description: 'Central Highland goat. Excellent for regular consumption.',
+    healthCertificate: true, availableDate: '2026-06-08', isActive: true, isApproved: true, images: []
+  },
+  {
+    id: 'a15', type: 'goat', breed: 'Begit', weight: 28, age: '1.5 years',
+    price: 6000, location: { area: 'Western Ethiopia', lat: 9.0500, lng: 35.0000 },
+    sellerId: 'seller4', sellerName: 'Dawit Haile', sellerRating: 4.7,
+    description: 'Begit goat. Strong and healthy.',
+    healthCertificate: true, availableDate: '2026-06-10', isActive: true, isApproved: true, images: []
+  },
+  {
+    id: 'a16', type: 'cattle', breed: 'Fogera', weight: 300, age: '3.5 years',
+    price: 48000, location: { area: 'Amhara', lat: 11.5833, lng: 37.5833 },
+    sellerId: 'seller3', sellerName: 'Tadesse Mulugeta', sellerRating: 4.9,
+    description: 'Fogera cattle. Dual-purpose breed from Amhara region.',
+    healthCertificate: true, availableDate: '2026-06-15', isActive: true, isApproved: true, images: []
+  },
+  {
+    id: 'a17', type: 'cattle', breed: 'Sheko', weight: 350, age: '4 years',
+    price: 55000, location: { area: 'Southern', lat: 7.0000, lng: 35.5000 },
+    sellerId: 'seller3', sellerName: 'Tadesse Mulugeta', sellerRating: 4.9,
+    description: 'Sheko dairy/beef cattle. Very resilient breed.',
+    healthCertificate: true, availableDate: '2026-06-20', isActive: true, isApproved: true, images: []
+  },
+  {
+    id: 'a18', type: 'cattle', breed: 'Arsi', weight: 280, age: '3 years',
+    price: 42000, location: { area: 'Oromia', lat: 7.9167, lng: 39.3333 },
+    sellerId: 'seller6', sellerName: 'Hana Girma', sellerRating: 4.4,
+    description: 'Arsi cattle from Oromia. Great for medium-sized gatherings.',
+    healthCertificate: true, availableDate: '2026-06-12', isActive: true, isApproved: true, images: []
   }
 ];
 
@@ -273,7 +315,7 @@ export const ANIMAL_EMOJIS = {
 
 export const ANIMAL_TYPES = ['hen', 'sheep', 'goat', 'cattle', 'kircha'];
 
-export const NOTIFICATION_TYPES = ['deposit', 'holiday', 'marketplace', 'delivery', 'system', 'promotion', 'order'];
+export const NOTIFICATION_TYPES = ['system', 'wallet', 'holiday', 'marketplace', 'security', 'deposit', 'delivery', 'promotion', 'order'];
 
 // ---- Amharic translations ----
 export const TRANSLATIONS = {

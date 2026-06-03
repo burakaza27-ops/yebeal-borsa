@@ -532,11 +532,63 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
       {/* OVERVIEW */}
       {activeSection === 'overview' && (
         <div>
-          <div className="stats-grid">
-            <div className="stat-card gold"><div className="stat-icon"><DollarSign size={22} /></div><div className="stat-value">{formatETB(totalDeposits)}</div><div className="stat-label">{t.totalDeposits}</div></div>
-            <div className="stat-card green"><div className="stat-icon"><Users size={22} /></div><div className="stat-value">{customers.length}</div><div className="stat-label">{t.activeSavers}</div></div>
-            <div className="stat-card blue"><div className="stat-icon"><ShoppingBag size={22} /></div><div className="stat-value">{activeListings}</div><div className="stat-label">{lang === 'am' ? 'ንቁ ዝርዝሮች' : 'Active Listings'}</div></div>
-            <div className="stat-card purple"><div className="stat-icon"><TrendingUp size={22} /></div><div className="stat-value">{formatETB(totalSpent)}</div><div className="stat-label">{t.totalSpent}</div></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 24 }}>
+            {/* Platform Metrics */}
+            <div className="card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 16 }}>{lang === 'am' ? 'የስርዓት መለኪያዎች (ያለፉት 30 ቀናት)' : 'PLATFORM METRICS (Last 30 Days)'}</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'am' ? 'ተጠቃሚዎች' : 'Users'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{customers.length} <span style={{ fontSize: '0.65rem', color: 'var(--green-bright)' }}>+12%</span></div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'am' ? 'ትዕዛዞች' : 'Transactions'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{847} <span style={{ fontSize: '0.65rem', color: 'var(--green-bright)' }}>+8%</span></div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'am' ? 'የገንዘብ መጠን' : 'Volume'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{formatETB(totalDeposits + totalSpent)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Overview */}
+            <div className="card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 16 }}>{lang === 'am' ? 'የፋይናንስ አጠቃላይ እይታ' : 'FINANCIAL OVERVIEW'}</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'am' ? 'ተቀማጭ' : 'Deposits'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--green-bright)' }}>{formatETB(totalDeposits)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'am' ? 'ማውጣት' : 'Withdrawals'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gold)' }}>{formatETB(withdrawals.reduce((acc, w) => acc + w.amount, 0))}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'am' ? 'የስርዓት ክፍያ' : 'Platform Fee'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--blue)' }}>{formatETB(totalSpent * 0.05)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Marketplace Activity */}
+            <div className="card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 16 }}>{lang === 'am' ? 'የገበያ እንቅስቃሴ' : 'MARKETPLACE ACTIVITY'}</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="flex justify-between" style={{ fontSize: '0.85rem' }}>
+                  <span>{ANIMAL_EMOJIS['sheep']} {lang === 'am' ? 'በግ' : 'Sheep'}</span>
+                  <span>Listed: <strong style={{ color: 'var(--text-primary)' }}>{animals.filter(a => a.type === 'sheep').length}</strong> | Sold: <strong style={{ color: 'var(--green-bright)' }}>21</strong></span>
+                </div>
+                <div className="flex justify-between" style={{ fontSize: '0.85rem' }}>
+                  <span>{ANIMAL_EMOJIS['goat']} {lang === 'am' ? 'ፍየል' : 'Goats'}</span>
+                  <span>Listed: <strong style={{ color: 'var(--text-primary)' }}>{animals.filter(a => a.type === 'goat').length}</strong> | Sold: <strong style={{ color: 'var(--green-bright)' }}>12</strong></span>
+                </div>
+                <div className="flex justify-between" style={{ fontSize: '0.85rem' }}>
+                  <span>{ANIMAL_EMOJIS['cattle']} {lang === 'am' ? 'በሬ/ላም' : 'Cattle'}</span>
+                  <span>Listed: <strong style={{ color: 'var(--text-primary)' }}>{animals.filter(a => a.type === 'cattle').length}</strong> | Sold: <strong style={{ color: 'var(--green-bright)' }}>3</strong></span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {(pendingApprovals > 0 || pendingWithdrawals > 0) && (

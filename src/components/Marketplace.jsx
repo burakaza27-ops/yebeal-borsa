@@ -650,6 +650,15 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
 
                     {/* Actions Bar */}
                     <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10, flexWrap: 'wrap' }}>
+                      {(order.deliveryStatus === 'in_transit' || order.deliveryStatus === 'processing') && (
+                        <button 
+                          className="btn btn-primary btn-sm" 
+                          onClick={() => alert(lang === 'am' ? 'የትዕዛዝ መከታተያ በቅርቡ ይመጣል' : 'Live tracking simulation... Driver is 15 mins away.')}
+                        >
+                          📍 {lang === 'am' ? 'ትዕዛዝ ተከታተል' : 'Track Order'}
+                        </button>
+                      )}
+                      
                       {order.deliveryStatus !== 'delivered' && order.deliveryStatus !== 'completed' && order.deliveryStatus !== 'cancelled' && (
                         <button 
                           className="btn btn-danger btn-sm" 
@@ -660,12 +669,21 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                       )}
                       
                       {order.deliveryStatus === 'delivered' && (
-                        <button 
-                          className="btn btn-secondary btn-sm" 
-                          onClick={() => { setRateOrderId(order.id); setRatingValue(5); }}
-                        >
-                          ⭐️ {lang === 'am' ? 'ሻጭ ደረጃ ስጥ' : 'Rate Seller'}
-                        </button>
+                        <>
+                          <button 
+                            className="btn btn-secondary btn-sm" 
+                            onClick={() => { setRateOrderId(order.id); setRatingValue(5); }}
+                          >
+                            ⭐️ {lang === 'am' ? 'ሻጭ ደረጃ ስጥ' : 'Rate Seller'}
+                          </button>
+                          <button 
+                            className="btn btn-danger btn-sm" 
+                            style={{ background: 'var(--bg-elevated)', color: 'var(--red)', border: '1px solid var(--border-light)' }}
+                            onClick={() => alert(lang === 'am' ? 'ችግር ሪፖርት አድርግ' : 'Issue reporting form opened.')}
+                          >
+                            ⚠️ {lang === 'am' ? 'ችግር ሪፖርት አድርግ' : 'Report Issue'}
+                          </button>
+                        </>
                       )}
 
                       {order.deliveryStatus === 'delivered' && order.insuranceAdded && (
