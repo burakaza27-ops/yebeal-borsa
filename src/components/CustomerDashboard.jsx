@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   makeDeposit, formatETB, formatDateTime, getTierInfo,
-  daysUntil, getAnalytics, ANIMAL_EMOJIS, TRANSLATIONS
+  daysUntil, getAnalytics, ANIMAL_EMOJIS, TRANSLATIONS, requestWithdrawal
 } from '../db';
 import { fetchWallets, fetchTransactions, fetchHolidays, fetchCustomerHolidays } from '../api';
 import { apiFetch } from '../db';
@@ -32,6 +32,11 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [depositHolidayId, setDepositHolidayId] = useState('');
   const [lockAcknowledged, setLockAcknowledged] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawMethod, setWithdrawMethod] = useState('Telebirr');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
@@ -96,6 +101,34 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
     }
   };
 
+  const handleWithdraw = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (!amount || amount <= 0) return;
+    if (amount > (primaryWallet?.balance || 0)) {
+      if (showToast) showToast(lang === 'am' ? 'በቂ ቀሪ ሂሳብ የለም' : 'Insufficient available cash', 'error');
+      else alert('Insufficient available cash');
+      return;
+    }
+    setLoading(true);
+    try {
+      await requestWithdrawal(primaryWallet.id, amount, 'User withdrawal request', withdrawMethod, withdrawAccount, user.fullName);
+      setWithdrawSuccess(true);
+      if (showToast) showToast(lang === 'am' ? 'የማውጣት ጥያቄ ቀርቧል!' : 'Withdrawal request submitted!', 'success');
+      setTimeout(() => {
+        setShowWithdraw(false);
+        setWithdrawAmount('');
+        setWithdrawAccount('');
+        setWithdrawSuccess(false);
+        refresh();
+      }, 1500);
+    } catch (err) {
+      if (showToast) showToast(err.message || 'Withdrawal failed', 'error');
+      else alert(err.message || 'Withdrawal failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const enrichedHolidays = customerHolidays
     .filter(ch => ch.status === 'active')
     .map(ch => {
@@ -134,32 +167,44 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
         )}
       </div>
 
-      {/* KPI Stats — showing Available, Locked, Platform Credits, and Total Deposits */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <div className="stat-card green">
-          <div className="stat-icon"><Wallet size={20} /></div>
-          <div className="stat-value">{formatETB(primaryWallet?.balance || 0)}</div>
-          <div className="stat-label">{lang === 'am' ? 'ለመውጣት የሚችል' : 'Available Cash'}</div>
-        </div>
-        <div className="stat-card gold">
-          <div className="stat-icon"><Clock size={20} /></div>
-          <div className="stat-value">{formatETB(primaryWallet?.lockedBalance || 0)}</div>
-          <div className="stat-label">{lang === 'am' ? 'የታሰረ የቁጠባ ግብ' : 'Locked Savings'}</div>
-        </div>
-        <div className="stat-card blue">
-          <div className="stat-icon"><Gift size={20} /></div>
-          <div className="stat-value">{formatETB(primaryWallet?.platformCredits || 0)}</div>
-          <div className="stat-label">{lang === 'am' ? 'የቦነስ ክሬዲት' : 'Platform Credits'}</div>
-        </div>
-        <div className="stat-card purple">
-          <div className="stat-icon"><TrendingUp size={20} /></div>
-          <div className="stat-value">{formatETB(user.totalDeposits)}</div>
-          <div className="stat-label">{t.totalDeposits}</div>
-        </div>
-        <div className="stat-card red">
-          <div className="stat-icon"><DollarSign size={20} /></div>
-          <div className="stat-value">{formatETB(user.totalSpent)}</div>
-          <div className="stat-label">{t.totalSpent}</div>
+      {/* Unified Wallet Dashboard */}
+      <div className="card" style={{ marginBottom: 24, padding: 24, background: 'linear-gradient(135deg, var(--bg-card) 0%, hsla(45,80%,50%,0.05) 100%)', border: '1px solid var(--border-light)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20 }}>
+          {/* Main Balance */}
+          <div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 4 }}>{lang === 'am' ? 'ለመውጣት የሚችል ቀሪ ሂሳብ' : 'Available Cash (Spend or Withdraw)'}</div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+              {formatETB(primaryWallet?.balance || 0)}
+            </div>
+            <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+              <button className="btn btn-primary" onClick={() => setShowDeposit(true)} style={{ padding: '10px 24px', fontWeight: 600 }}>
+                💰 {t.deposit}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setShowWithdraw(true)} style={{ padding: '10px 24px', fontWeight: 600 }}>
+                💸 {t.withdraw || 'Withdraw'}
+              </button>
+            </div>
+          </div>
+          
+          {/* Detailed Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px 24px', flex: 1, minWidth: 280 }}>
+            <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: 4 }}>{lang === 'am' ? 'ለበዓል የታሰረ' : 'Locked Holiday Savings'}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gold)' }}>{formatETB(primaryWallet?.lockedBalance || 0)}</div>
+            </div>
+            <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: 4 }}>{lang === 'am' ? 'የቦነስ ክሬዲት' : 'Platform Credits (Bonus)'}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#3b82f6' }}>{formatETB(primaryWallet?.platformCredits || 0)}</div>
+            </div>
+            <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: 4 }}>{t.totalDeposits}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{formatETB(user.totalDeposits)}</div>
+            </div>
+            <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: 4 }}>{t.totalSpent}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{formatETB(user.totalSpent)}</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -198,7 +243,7 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-            {[1000, 2000, 5000, 10000].map(amt => (
+            {[100, 500, 1000, 5000].map(amt => (
               <button
                 key={amt}
                 className="btn btn-secondary btn-sm"
@@ -503,6 +548,70 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
                         <Plus size={16} /> {t.confirmDeposit}
                       </>
                     )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdraw && (
+        <div className="modal-overlay" onClick={() => {
+          if (!withdrawSuccess) setShowWithdraw(false);
+        }}>
+          <div className="modal scale-in" onClick={e => e.stopPropagation()}>
+            {withdrawSuccess ? (
+              <div style={{ padding: '50px 40px', textAlign: 'center' }}>
+                <div style={{ fontSize: '3.5rem', marginBottom: 12 }}>⏳</div>
+                <h3 style={{ fontSize: '1.2rem', marginBottom: 8 }}>{lang === 'am' ? 'የማውጣት ጥያቄ ቀርቧል' : 'Withdrawal Request Submitted'}</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  {formatETB(parseFloat(withdrawAmount) || 0)} {lang === 'am' ? 'ወደ' : 'via'} {translateMethod(withdrawMethod)}
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 12 }}>
+                  {lang === 'am' ? 'አስተዳዳሪው ይህንን ጥያቄ መገምገም እና ማረጋገጥ ይኖርበታል።' : 'Your request requires admin approval and will be processed shortly.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="modal-header">
+                  <h3>💸 {t.withdraw || 'Withdraw'}</h3>
+                  <button className="btn btn-ghost btn-icon" onClick={() => setShowWithdraw(false)}>✕</button>
+                </div>
+                <div className="modal-body">
+                  <div className="form-group">
+                    <label className="form-label">{t.amount} (ETB)</label>
+                    <input type="number" className="form-input" placeholder={t.enterAmount} value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} min="1" id="withdraw-amount" />
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                      {lang === 'am' ? 'የሚገኝ:' : 'Available:'} {formatETB(primaryWallet?.balance || 0)}
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{lang === 'am' ? 'የማውጣት ዘዴ' : 'Withdrawal Method'}</label>
+                    <select className="form-input form-select" value={withdrawMethod} onChange={e => setWithdrawMethod(e.target.value)} id="withdraw-method">
+                      <option value="Telebirr">{t.telebirr}</option>
+                      <option value="CBE Birr">{t.cbeBirr}</option>
+                      <option value="CBE Bank Transfer">{lang === 'am' ? 'የኢትዮጵያ ንግድ ባንክ' : 'CBE Bank Transfer'}</option>
+                      <option value="Awash Bank">{lang === 'am' ? 'አዋሽ ባንክ' : 'Awash Bank'}</option>
+                      <option value="Dashen Bank">{lang === 'am' ? 'ዳሽን ባንክ' : 'Dashen Bank'}</option>
+                      <option value="Abyssinia Bank">{lang === 'am' ? 'አቢሲንያ ባንክ' : 'Abyssinia Bank'}</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{lang === 'am' ? 'የሂሳብ ዝርዝር / ስልክ ቁጥር' : 'Account Details / Phone Number'}</label>
+                    <input type="text" className="form-input" placeholder={lang === 'am' ? 'የሂሳብ ወይም የስልክ ቁጥር ያስገቡ' : 'Enter account or phone number'} value={withdrawAccount} onChange={e => setWithdrawAccount(e.target.value)} />
+                  </div>
+                  <div style={{ background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.2)', borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 12 }}>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      <strong style={{ color: '#f97316' }}>{lang === 'am' ? 'ማስታወሻ:' : 'Note:'}</strong> {lang === 'am' ? 'የማውጣት ጥያቄው በአስተዳዳሪ መረጋገጥ አለበት።' : 'Withdrawals are subject to admin review and processing times may vary (instant for mobile money, 1-3 days for banks).'}
+                    </p>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowWithdraw(false)} disabled={loading}>{t.cancel}</button>
+                  <button className="btn btn-primary" onClick={handleWithdraw} disabled={loading || !withdrawAmount || !withdrawAccount} id="withdraw-confirm">
+                    {loading ? <span className="btn-spinner" /> : t.confirmPurchase || 'Confirm'}
                   </button>
                 </div>
               </>

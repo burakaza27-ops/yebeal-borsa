@@ -650,7 +650,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
 
                     {/* Actions Bar */}
                     <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10, flexWrap: 'wrap' }}>
-                      {order.deliveryStatus !== 'delivered' && order.deliveryStatus !== 'cancelled' && (
+                      {order.deliveryStatus !== 'delivered' && order.deliveryStatus !== 'completed' && order.deliveryStatus !== 'cancelled' && (
                         <button 
                           className="btn btn-danger btn-sm" 
                           onClick={() => { setCancelOrderId(order.id); setCancelReasonText(''); }}
