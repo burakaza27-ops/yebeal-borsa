@@ -50,6 +50,9 @@ if (!process.env.VERCEL) {
 
 const app = express();
 
+// Trust reverse proxies (e.g. Vercel, Heroku, Nginx) so req.ip represents the client
+app.set('trust proxy', 1);
+
 const globalForPrisma = globalThis;
 let dbUrl = process.env.DATABASE_URL || '';
 // Prevent Vercel Serverless Functions from exhausting Supabase DB connection limit
@@ -148,7 +151,7 @@ app.use(limiter);
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 20 : 500, // higher max for development
+  max: process.env.NODE_ENV === 'production' ? 50 : 500, // higher max for development
   message: { error: 'Too many login attempts, please try again later.' },
   store: authRateLimitStore,
   standardHeaders: true,
