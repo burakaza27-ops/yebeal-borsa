@@ -6,7 +6,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import {
-  makeDeposit, formatETB, formatDateTime, getTierInfo,
+  makeDeposit, formatETB, formatDateTime, formatDate, getTierInfo,
   daysUntil, getAnalytics, ANIMAL_EMOJIS, TRANSLATIONS, requestWithdrawal
 } from '../db';
 import { fetchWallets, fetchTransactions, fetchHolidays, fetchCustomerHolidays } from '../api';
