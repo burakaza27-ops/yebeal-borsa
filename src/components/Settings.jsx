@@ -128,9 +128,9 @@ export default function Settings({ onRefresh, lang, showToast, user }) {
     refresh();
   };
 
-  const handleLanguageChange = (lng) => {
+  const handleLanguageChange = async (lng) => {
     setSelectedLang(lng);
-    setLanguage(lng);
+    await setLanguage(lng);
     refresh();
   };
 

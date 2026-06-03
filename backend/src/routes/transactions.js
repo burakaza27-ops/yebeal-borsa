@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { parseAndValidateInt, parseAndValidateFloat } from '../utils/validation.js';
+import { validateBody } from '../middleware/validate.js';
+import { depositSchema } from '../utils/schemas.js';
 
 const router = Router();
 router.use(authenticate);
@@ -58,17 +60,9 @@ router.get('/', async (req, res, next) => {
 });
 
 // ─── POST /api/transactions/deposit ──────────────
-router.post('/deposit', async (req, res, next) => {
+router.post('/deposit', validateBody(depositSchema), async (req, res, next) => {
   try {
     const { walletId, amount, description, method, holidayId, idempotencyKey } = req.body;
-
-    if (!walletId || amount === undefined || amount === null) {
-      return res.status(400).json({ error: 'Valid wallet ID and amount are required.' });
-    }
-
-    if (!idempotencyKey) {
-      return res.status(400).json({ error: 'Idempotency key is required to prevent double-spending.' });
-    }
 
     const validatedAmount = parseAndValidateFloat(amount, 'amount', true, 0.01);
 

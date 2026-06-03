@@ -30,7 +30,7 @@ export default function AdminDashboard({ onRefresh, lang, showToast, user }) {
   const customers = Array.isArray(customersRaw) ? customersRaw : (customersRaw?.customers || []);
   const { data: holidaysRaw = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
   const holidays = Array.isArray(holidaysRaw) ? holidaysRaw : (holidaysRaw?.holidays || []);
-  const { data: animalsRaw = [] } = useQuery({ queryKey: ['animals'], queryFn: fetchAnimals });
+  const { data: animalsRaw = [] } = useQuery({ queryKey: ['animals-all'], queryFn: async () => { const { apiFetch } = await import('../db'); return apiFetch('/animals?approvedOnly=false'); } });
   const animals = Array.isArray(animalsRaw) ? animalsRaw : (animalsRaw?.animals || []);
   const { data: notificationsRaw = [] } = useQuery({ queryKey: ['notifications'], queryFn: fetchNotifications });
   const notifications = Array.isArray(notificationsRaw) ? notificationsRaw : (notificationsRaw?.notifications || []);

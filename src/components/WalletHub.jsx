@@ -53,7 +53,7 @@ export default function WalletHub({ onRefresh, lang, showToast, user }) {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const analytics = getAnalytics(transactions);
   const activeHolidays = holidays || [];
-  const hasPendingOrders = orders.some(o => o.deliveryStatus !== 'delivered' && o.deliveryStatus !== 'cancelled');
+  const hasPendingOrders = orders.some(o => o.deliveryStatus?.toLowerCase() !== 'delivered' && o.deliveryStatus?.toLowerCase() !== 'cancelled');
 
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
@@ -121,7 +121,10 @@ export default function WalletHub({ onRefresh, lang, showToast, user }) {
   };
 
   const refresh = async () => {
-    await queryClient.invalidateQueries();
+    queryClient.invalidateQueries({ queryKey: ['wallets'] });
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['withdrawals'] });
+    queryClient.invalidateQueries({ queryKey: ['user'] });
     if (onRefresh) onRefresh();
   };
 

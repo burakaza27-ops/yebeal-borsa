@@ -65,7 +65,10 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
     return map[type] || type;
   };
   const refresh = async () => {
-    await queryClient.invalidateQueries();
+    queryClient.invalidateQueries({ queryKey: ['wallets'] });
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['customer-holidays'] });
+    queryClient.invalidateQueries({ queryKey: ['user'] });
   };
 
   const primaryWallet = wallets.find(w => !w.isFamily);
@@ -74,6 +77,26 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
+    
+    // Save previous state for rollback
+    const previousWallets = queryClient.getQueryData(['wallets']);
+    
+    // Optimistic Update
+    if (previousWallets) {
+      queryClient.setQueryData(['wallets'], old => {
+        if (!old) return old;
+        return old.map(w => {
+          if (w.id === primaryWallet.id) {
+            if (depositHolidayId) {
+              return { ...w, lockedBalance: (w.lockedBalance || 0) + amount };
+            }
+            return { ...w, balance: (w.balance || 0) + amount };
+          }
+          return w;
+        });
+      });
+    }
+
     setLoading(true);
     try {
       await makeDeposit(primaryWallet.id, amount, depositNote || (depositHolidayId ? 'Locked Holiday Savings' : 'Quick deposit'), depositMethod, depositHolidayId || null);
@@ -91,6 +114,10 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
         refresh();
       }, 1500);
     } catch (err) {
+      // Rollback on error
+      if (previousWallets) {
+        queryClient.setQueryData(['wallets'], previousWallets);
+      }
       if (showToast) {
         showToast(err.message || 'Deposit failed', 'error');
       } else {

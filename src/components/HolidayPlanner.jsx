@@ -73,7 +73,7 @@ export default function HolidayPlanner({ onRefresh, lang, showToast, user }) {
           'success'
         );
       }
-      await refresh();
+      refresh();
     } catch (err) {
       if (showToast) showToast(err.message || 'Failed to join goal', 'error');
       else alert(err.message || 'Failed to join goal');
@@ -127,7 +127,7 @@ export default function HolidayPlanner({ onRefresh, lang, showToast, user }) {
           'warning'
         );
       }
-      await refresh();
+      refresh();
     } catch (err) {
       if (showToast) showToast(err.message || 'Failed to cancel goal', 'error');
       else alert(err.message || 'Failed to cancel goal');

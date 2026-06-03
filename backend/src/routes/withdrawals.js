@@ -5,6 +5,8 @@
 import { Router } from 'express';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { parseAndValidateFloat } from '../utils/validation.js';
+import { validateBody } from '../middleware/validate.js';
+import { withdrawalSchema } from '../utils/schemas.js';
 
 const router = Router();
 
@@ -34,22 +36,9 @@ router.get('/', authenticate, async (req, res, next) => {
 const VALID_WITHDRAWAL_METHODS = ['TELEBIRR', 'CBE_BIRR', 'BANK_TRANSFER'];
 const METHOD_LABELS = { TELEBIRR: 'Telebirr', CBE_BIRR: 'CBE Birr', BANK_TRANSFER: 'Bank Transfer' };
 
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, validateBody(withdrawalSchema), async (req, res, next) => {
   try {
     const { walletId, amount, reason, withdrawalMethod, accountNumber, accountName } = req.body;
-
-    // --- Validate required fields ---
-    if (!walletId || amount === undefined || amount === null) {
-      return res.status(400).json({ error: 'Wallet ID and amount are required.' });
-    }
-
-    if (!withdrawalMethod || !VALID_WITHDRAWAL_METHODS.includes(withdrawalMethod)) {
-      return res.status(400).json({ error: 'Withdrawal method is required. Must be one of: TELEBIRR, CBE_BIRR, BANK_TRANSFER.' });
-    }
-
-    if (!accountNumber || typeof accountNumber !== 'string' || accountNumber.trim().length === 0) {
-      return res.status(400).json({ error: 'Account number / phone number is required.' });
-    }
 
     const cleanedAccount = accountNumber.trim();
 
@@ -77,24 +66,24 @@ router.post('/', authenticate, async (req, res, next) => {
       // (The active orders blocker was removed here to allow sellers to withdraw available funds)
 
       // Get wallet
+      const walletInitial = await tx.wallet.findUnique({
+        where: { id: walletId },
+      });
+
+      if (!walletInitial || walletInitial.userId !== req.user.id) {
+        throw new Error('Wallet not found.');
+      }
+
+      // Pessimistic lock the wallet row
+      await tx.$executeRaw`SELECT * FROM "wallets" WHERE "id" = ${walletId} FOR UPDATE`;
+
       const wallet = await tx.wallet.findUnique({
         where: { id: walletId },
       });
 
-      if (!wallet || wallet.userId !== req.user.id) {
-        throw new Error('Wallet not found.');
-      }
-
-      // Get pending withdrawals sum to check limits precisely, reserving both available and locked parts
-      const pendingWithdrawals = await tx.withdrawalRequest.findMany({
-        where: { walletId, status: 'PENDING' }
-      });
-      const pendingAvailableSum = pendingWithdrawals.reduce((sum, r) => sum + r.availableDeduction, 0);
-      const pendingLockedSum = pendingWithdrawals.reduce((sum, r) => sum + r.lockedDeduction, 0);
-
       // Determine available vs locked portions of current amount
-      const remainingAvailable = Math.max(0, wallet.balance - pendingAvailableSum);
-      const remainingLocked = Math.max(0, wallet.lockedBalance - pendingLockedSum);
+      const remainingAvailable = wallet.balance;
+      const remainingLocked = wallet.lockedBalance;
       
       const frozenAvailableDeduction = Math.round(Math.min(remainingAvailable, validatedAmount));
       const lockedPartNeeded = validatedAmount - frozenAvailableDeduction;
@@ -111,9 +100,22 @@ router.post('/', authenticate, async (req, res, next) => {
       const currentTotalWalletFunds = wallet.balance + wallet.lockedBalance;
 
       // Enforce 100 ETB reserve requirement
-      if (currentTotalWalletFunds - (pendingAvailableSum + pendingLockedSum) - totalDeductedFromWallet < 100) {
+      if (currentTotalWalletFunds - totalDeductedFromWallet < 100) {
         throw new Error('Withdrawal rejected. A minimum reserve of 100 ETB must remain in your wallet.');
       }
+      
+      if (frozenLockedDeduction > remainingLocked) {
+        throw new Error('Insufficient locked funds for this withdrawal.');
+      }
+
+      // Deduct immediately (Immediate Deduction Architecture)
+      await tx.wallet.update({
+        where: { id: walletId },
+        data: {
+          balance: { decrement: frozenAvailableDeduction },
+          lockedBalance: { decrement: frozenLockedDeduction },
+        },
+      });
 
       // Create withdrawal request WITH frozen penalty breakdown
       const request = await tx.withdrawalRequest.create({
@@ -134,9 +136,9 @@ router.post('/', authenticate, async (req, res, next) => {
 
       // Create notification with destination info
       const methodLabel = METHOD_LABELS[withdrawalMethod] || withdrawalMethod;
-      let notificationMessage = `Your withdrawal request for ${validatedAmount.toLocaleString()} ETB to ${methodLabel} (${cleanedAccount}) is pending admin approval.`;
+      let notificationMessage = `Your withdrawal request for ${validatedAmount.toLocaleString()} ETB to ${methodLabel} (${cleanedAccount}) is pending admin approval. The funds have been held from your balance.`;
       if (lockedPartNeeded > 0) {
-        notificationMessage += ` Warning: ${lockedPartNeeded.toLocaleString()} ETB will be pulled early from locked savings with a 30% penalty (${frozenPenaltyAmount.toLocaleString()} ETB).`;
+        notificationMessage += ` Warning: ${lockedPartNeeded.toLocaleString()} ETB was pulled early from locked savings with a 30% penalty (${frozenPenaltyAmount.toLocaleString()} ETB).`;
       }
 
       await tx.notification.create({
@@ -145,6 +147,18 @@ router.post('/', authenticate, async (req, res, next) => {
           title: 'Withdrawal Requested',
           message: notificationMessage,
           type: 'SYSTEM',
+        },
+      });
+
+      // Create a PENDING_WITHDRAWAL Transaction record so the user sees the deduction
+      await tx.transaction.create({
+        data: {
+          walletId,
+          amount: -totalDeductedFromWallet,
+          type: 'WITHDRAWAL',
+          description: `Withdrawal Request: ${reason || 'Personal withdrawal'}${frozenPenaltyAmount > 0 ? ` (Includes ${frozenPenaltyAmount} ETB penalty)` : ''}`,
+          method: withdrawalMethod,
+          balanceType: frozenLockedDeduction > 0 ? 'LOCKED' : 'AVAILABLE',
         },
       });
 
@@ -190,33 +204,10 @@ router.post('/:id/process', authenticate, requireAdmin, async (req, res, next) =
       }
 
       if (approve) {
-        // Use the FROZEN penalty breakdown from request time — never recalculate
-        const wallet = await tx.wallet.findUnique({ where: { id: request.walletId } });
-        
+        // Balances were already deducted when requested, so we just finalize
         const availablePart = request.availableDeduction;
         const lockedDeduction = request.lockedDeduction;
         const penalty = request.penaltyAmount;
-        const totalDeducted = availablePart + lockedDeduction;
-
-        // Safety check: ensure wallet still has sufficient funds for the frozen amounts
-        if (wallet.balance < availablePart) {
-          throw new Error(`User's available balance (${Math.round(wallet.balance)} ETB) is now less than the frozen deduction (${Math.round(availablePart)} ETB). The withdrawal cannot be processed.`);
-        }
-        if (lockedDeduction > 0 && wallet.lockedBalance < lockedDeduction) {
-          throw new Error(`User's locked balance (${Math.round(wallet.lockedBalance)} ETB) is now less than the frozen locked deduction (${Math.round(lockedDeduction)} ETB). The withdrawal cannot be processed.`);
-        }
-        if (wallet.balance + wallet.lockedBalance - totalDeducted < 100) {
-          throw new Error('User does not have enough wallet balance (minimum 100 ETB reserve required).');
-        }
-
-        // Deduct from available and locked balances using frozen amounts
-        await tx.wallet.update({
-          where: { id: request.walletId },
-          data: {
-            balance: { decrement: availablePart },
-            lockedBalance: { decrement: lockedDeduction },
-          },
-        });
 
         // FIX #1: If locked savings were withdrawn, sync the CustomerHoliday goal progress
         // atomically so it never diverges from the actual lockedBalance on the wallet.
@@ -234,31 +225,51 @@ router.post('/:id/process', authenticate, requireAdmin, async (req, res, next) =
           }
         }
 
-        // Record Withdrawal Transaction
+
+
+        await tx.notification.create({
+          data: {
+            userId: request.userId,
+            title: 'Withdrawal Approved ✓',
+            message: `Your withdrawal of ${request.amount.toLocaleString()} ETB has been processed.`,
+            type: 'SYSTEM',
+          },
+        });
+      } else {
+        // Rejection: Refund the held funds back to the user's wallet
+        const availablePart = request.availableDeduction;
+        const lockedDeduction = request.lockedDeduction;
+        const totalRefund = availablePart + lockedDeduction;
+
+        // Refund balances
+        await tx.wallet.update({
+          where: { id: request.walletId },
+          data: {
+            balance: { increment: availablePart },
+            lockedBalance: { increment: lockedDeduction },
+          },
+        });
+
+        // Create a REFUND transaction
         await tx.transaction.create({
           data: {
             walletId: request.walletId,
-            amount: -request.amount,
-            type: 'WITHDRAWAL',
-            description: `Withdrawal approved: ${request.reason}`,
-            method: 'Admin Approved',
+            amount: totalRefund,
+            type: 'DEPOSIT',
+            description: `Refund: Withdrawal rejected. Note: ${adminNote || 'N/A'}`,
+            method: 'System Refund',
             balanceType: lockedDeduction > 0 ? 'LOCKED' : 'AVAILABLE',
           },
         });
 
-        // Record Penalty Transaction if applicable
-        if (penalty > 0) {
-          await tx.transaction.create({
-            data: {
-              walletId: request.walletId,
-              amount: -penalty,
-              type: 'WITHDRAWAL',
-              description: `Early withdrawal penalty (30%) on locked funds`,
-              method: 'System Penalty',
-              balanceType: 'LOCKED',
-            },
-          });
-        }
+        await tx.notification.create({
+          data: {
+            userId: request.userId,
+            title: 'Withdrawal Rejected ✗',
+            message: `Your withdrawal request of ${request.amount.toLocaleString()} ETB was rejected. Funds have been returned to your wallet. Note: ${adminNote || ''}`,
+            type: 'SYSTEM',
+          },
+        });
       }
 
       // Update withdrawal request status

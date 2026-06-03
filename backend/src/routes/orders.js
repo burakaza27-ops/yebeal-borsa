@@ -203,6 +203,12 @@ router.post('/', authenticate, async (req, res, next) => {
         throw new Error('Valid payment wallet not found.');
       }
 
+      // 1.5 Pessimistic lock the wallet row to prevent double-spend during concurrent orders
+      await tx.$executeRaw`SELECT * FROM "wallets" WHERE "id" = ${wallet.id} FOR UPDATE`;
+
+      // Refetch wallet state after lock to ensure we have the absolute latest balance
+      wallet = await tx.wallet.findUnique({ where: { id: wallet.id } });
+
       if (animal.type === 'KIRCHA') {
         // Find or create active KirchaPool
         let pool = await tx.kirchaPool.findUnique({

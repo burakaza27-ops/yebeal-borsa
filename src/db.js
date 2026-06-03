@@ -953,7 +953,24 @@ export const TRANSLATIONS = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || (window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api');
 
-export async function apiFetch(path, method = 'GET', body = null, retries = 1) {
+// ---- Circuit Breaker State ----
+let _consecutiveFailures = 0;
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+
+function _setOffline() {
+  if (_consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+    window.dispatchEvent(new CustomEvent('yebeal-offline', { detail: { failures: _consecutiveFailures } }));
+  }
+}
+
+function _setOnline() {
+  if (_consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+    window.dispatchEvent(new CustomEvent('yebeal-online'));
+  }
+  _consecutiveFailures = 0;
+}
+
+export async function apiFetch(path, method = 'GET', body = null, retries = 2) {
   const token = localStorage.getItem('yebeal_borsa_token');
   const headers = {
     'Content-Type': 'application/json',
@@ -964,11 +981,20 @@ export async function apiFetch(path, method = 'GET', body = null, retries = 1) {
   const config = {
     method,
     headers,
-    credentials: 'include', // Ensure HttpOnly cookies are sent on every request
+    credentials: 'include',
   };
   if (body) {
     config.body = JSON.stringify(body);
   }
+
+  // Exponential backoff delay: attempt 0 = 0ms, 1 = 1s, 2 = 2s, 3 = 4s
+  const attempt = 2 - retries; // 0, 1, 2
+  const backoffMs = attempt > 0 ? Math.min(1000 * Math.pow(2, attempt - 1), 8000) : 0;
+
+  if (backoffMs > 0) {
+    await new Promise(r => setTimeout(r, backoffMs));
+  }
+
   try {
     const res = await fetch(`${API_BASE}${path}`, config);
     
@@ -977,26 +1003,26 @@ export async function apiFetch(path, method = 'GET', body = null, retries = 1) {
     if (contentType && contentType.includes('application/json')) {
       const data = await res.json();
       if (!res.ok) {
-        // If we get a 500 error from the backend itself (but properly formatted JSON)
         if (res.status >= 500 && retries > 0) {
-          console.warn(`[apiFetch] Retrying ${method} ${path} after JSON 5xx error...`);
-          await new Promise(r => setTimeout(r, 1000));
+          console.warn(`[apiFetch] Retrying ${method} ${path} (${retries} left, backoff ${backoffMs}ms)...`);
           return apiFetch(path, method, body, retries - 1);
         }
         throw new Error(data.error || 'Network request failed');
       }
+      // Success — reset circuit breaker
+      _setOnline();
       return data;
     } else {
-      // The response is plain text or HTML (e.g. Vercel serverless function crash or gateway error)
       const text = await res.text();
       console.error(`Non-JSON response from API [${res.status}]:`, text);
       
       if (res.status === 500 || res.status === 502 || res.status === 504) {
         if (retries > 0) {
-          console.warn(`[apiFetch] Retrying ${method} ${path} after gateway/crash 5xx error...`);
-          await new Promise(r => setTimeout(r, 1000));
+          console.warn(`[apiFetch] Retrying ${method} ${path} after gateway error (${retries} left)...`);
           return apiFetch(path, method, body, retries - 1);
         }
+        _consecutiveFailures++;
+        _setOffline();
         throw new Error(
           `Backend connection failed (${res.status}). If you are running on Vercel, please make sure your DATABASE_URL and JWT_SECRET environment variables are correctly configured in your Vercel Dashboard project settings.`
         );
@@ -1005,9 +1031,12 @@ export async function apiFetch(path, method = 'GET', body = null, retries = 1) {
     }
   } catch (err) {
     if ((err.message === 'Failed to fetch' || err.message.includes('Network request failed')) && retries > 0) {
-      console.warn(`[apiFetch] Retrying ${method} ${path} after network error...`);
-      await new Promise(r => setTimeout(r, 1000));
+      console.warn(`[apiFetch] Retrying ${method} ${path} after network error (${retries} left, backoff)...`);
       return apiFetch(path, method, body, retries - 1);
+    }
+    if (err.message === 'Failed to fetch' || err.message.includes('Network request failed')) {
+      _consecutiveFailures++;
+      _setOffline();
     }
     console.error(`API Fetch Error [${method} ${path}]:`, err);
     throw err;

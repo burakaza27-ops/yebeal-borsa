@@ -137,7 +137,7 @@ const authRateLimitStore = redisEnabled
 // Rate limiting — Prevent brute force attacks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Limit each IP to 200 requests per window
+  max: process.env.NODE_ENV === 'production' ? 200 : 5000, // Limit each IP to 200 requests per window in prod, 5000 in dev
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
@@ -170,11 +170,28 @@ app.use((req, res, next) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/wallets', walletRoutes);
-app.use('/api/transactions', transactionRoutes);
+// Stricter rate limit for financial endpoints (deposits, withdrawals)
+const financialRateLimitStore = redisEnabled
+  ? new RedisStore({
+      sendCommand: (...args) => redisClient.call(...args),
+      prefix: 'rate_limit:financial:',
+    })
+  : undefined;
+
+const financialLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.NODE_ENV === 'production' ? 30 : 500, // 30 financial ops per hour in prod
+  message: { error: 'Too many financial requests. Please wait before trying again.' },
+  store: financialRateLimitStore,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/transactions', financialLimiter, transactionRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/animals', animalRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/withdrawals', withdrawalRoutes);
+app.use('/api/withdrawals', financialLimiter, withdrawalRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/delivery', deliveryRoutes);
@@ -228,8 +245,8 @@ async function start() {
     await prisma.$connect();
     logger.info('✅ Database connected successfully');
 
-    app.listen(PORT, () => {
-      logger.info(`🚀 Yebeal Borsa API running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`🚀 Yebeal Borsa API running on http://0.0.0.0:${PORT}`);
       logger.info(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
     });

@@ -103,6 +103,7 @@ function App() {
 
   // Offline detection state
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [backendDown, setBackendDown] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -113,11 +114,23 @@ function App() {
       setIsOnline(false);
       showToast(lang === 'am' ? 'ከመስመር ውጭ ነው - የበይነመረብ ግንኙነት የለም' : 'Offline - No Internet Connection', 'warning');
     };
+    // Circuit breaker events from apiFetch
+    const handleBackendDown = () => {
+      setBackendDown(true);
+    };
+    const handleBackendUp = () => {
+      setBackendDown(false);
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('yebeal-offline', handleBackendDown);
+    window.addEventListener('yebeal-online', handleBackendUp);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('yebeal-offline', handleBackendDown);
+      window.removeEventListener('yebeal-online', handleBackendUp);
     };
   }, [lang, showToast]);
 
@@ -143,18 +156,23 @@ function App() {
     }
   }, [userError]);
 
+  const [hasInitPage, setHasInitPage] = useState(false);
+
   useEffect(() => {
     if (user) {
       if (user.language) setLang(user.language);
       if (user.role) {
         const lowerRole = user.role.toLowerCase();
         setRole(lowerRole);
-        if (lowerRole === 'admin') setPage('admin');
-        else if (lowerRole === 'seller') setPage('seller');
-        else setPage('dashboard');
+        if (!hasInitPage) {
+          if (lowerRole === 'admin') setPage('admin');
+          else if (lowerRole === 'seller') setPage('seller');
+          else setPage('dashboard');
+          setHasInitPage(true);
+        }
       }
     }
-  }, [user]);
+  }, [user, hasInitPage]);
 
   const refreshNotifs = useCallback(() => {
     setUnreadCount(getUnreadCount());
@@ -171,7 +189,10 @@ function App() {
   }, [loggedIn, refreshNotifs, refreshKey]);
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries();
+    queryClient.invalidateQueries({ queryKey: ['wallets'] });
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['user'] });
+    queryClient.invalidateQueries({ queryKey: ['customer-holidays'] });
     setRefreshKey(k => k + 1);
     refreshNotifs();
   };
@@ -345,6 +366,12 @@ function App() {
           <div className="offline-banner">
             <span className="offline-dot" />
             {lang === 'am' ? 'ከመስመር ውጭ ሞድ (ያልተመሳሰሉ ለውጦች)' : 'Offline Mode (Unsynced Changes)'}
+          </div>
+        )}
+        {isOnline && backendDown && (
+          <div className="offline-banner" style={{ background: 'linear-gradient(90deg, #dc262680, #f5920080)', borderColor: '#f59200' }}>
+            <span className="offline-dot" style={{ background: '#f59200' }} />
+            {lang === 'am' ? 'ከሰርቨር ጋር መገናኘት አልተቻለም — ዳግም በመሞከር ላይ...' : 'Server unreachable — Reconnecting...'}
           </div>
         )}
         <div className="app-body">
