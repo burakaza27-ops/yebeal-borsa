@@ -4,7 +4,7 @@ import { fetchUser } from './api';
 import {
   Home, ShoppingBag, Calendar, Wallet, Bell, Settings as SettingsIcon, LogOut,
   Shield, Users, BarChart3, Package, X, User, Menu, Sun, Moon,
-  CheckCircle, XCircle, AlertTriangle
+  CheckCircle, XCircle, AlertTriangle, Plus
 } from 'lucide-react';
 import {
   initDB, readDB, isLoggedIn, setLoggedIn,
@@ -508,6 +508,65 @@ function App() {
           
           {role === 'admin' && user?.role?.toLowerCase() === 'admin' && <SectionErrorBoundary name="Admin Dashboard"><AdminDashboard onRefresh={handleRefresh} lang={lang} showToast={showToast} user={user} /></SectionErrorBoundary>}
         </main>
+
+        {/* ─── MOBILE BOTTOM NAVIGATION ─── */}
+        <nav className="mobile-bottom-nav" role="navigation" aria-label="Mobile navigation">
+          {role === 'customer' && (
+            <>
+              <button className={`bottom-nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')} aria-label="Home">
+                <span className="bottom-nav-icon"><Home size={20} /></span>
+                <span>{lang === 'am' ? 'ዋና' : 'Home'}</span>
+              </button>
+              <button className={`bottom-nav-item ${page === 'marketplace' ? 'active' : ''}`} onClick={() => setPage('marketplace')} aria-label="Market">
+                <span className="bottom-nav-icon"><ShoppingBag size={20} /></span>
+                <span>{lang === 'am' ? 'ገበያ' : 'Market'}</span>
+              </button>
+              <button className={`bottom-nav-item ${page === 'wallet' ? 'active' : ''}`} onClick={() => setPage('wallet')} aria-label="Wallet">
+                <span className="bottom-nav-icon"><Wallet size={20} /></span>
+                <span>{lang === 'am' ? 'ቦርሳ' : 'Wallet'}</span>
+              </button>
+              <button className={`bottom-nav-item ${page === 'holidays' ? 'active' : ''}`} onClick={() => setPage('holidays')} aria-label="Holidays">
+                <span className="bottom-nav-icon"><Calendar size={20} /></span>
+                <span>{lang === 'am' ? 'በዓላት' : 'Holidays'}</span>
+              </button>
+              <button className="bottom-nav-item" onClick={openNotifs} aria-label="Notifications">
+                <span className="bottom-nav-icon"><Bell size={20} /></span>
+                <span>{lang === 'am' ? 'ማሳወቂያ' : 'Alerts'}</span>
+                {unreadCount > 0 && <span className="bottom-nav-badge" />}
+              </button>
+            </>
+          )}
+          {role === 'seller' && (
+            <>
+              <button className={`bottom-nav-item ${page === 'seller' ? 'active' : ''}`} onClick={() => setPage('seller')} aria-label="Dashboard">
+                <span className="bottom-nav-icon"><BarChart3 size={20} /></span>
+                <span>{lang === 'am' ? 'ዳሽቦርድ' : 'Dashboard'}</span>
+              </button>
+              <button className="bottom-nav-item" onClick={openNotifs} aria-label="Notifications">
+                <span className="bottom-nav-icon"><Bell size={20} /></span>
+                <span>{lang === 'am' ? 'ማሳወቂያ' : 'Alerts'}</span>
+                {unreadCount > 0 && <span className="bottom-nav-badge" />}
+              </button>
+              <button className={`bottom-nav-item ${page === 'settings' ? 'active' : ''}`} onClick={() => setPage('settings')} aria-label="Settings">
+                <span className="bottom-nav-icon"><SettingsIcon size={20} /></span>
+                <span>{lang === 'am' ? 'ቅንብሮች' : 'Settings'}</span>
+              </button>
+            </>
+          )}
+          {role === 'admin' && (
+            <>
+              <button className={`bottom-nav-item ${page === 'admin' ? 'active' : ''}`} onClick={() => setPage('admin')} aria-label="Admin">
+                <span className="bottom-nav-icon"><Shield size={20} /></span>
+                <span>{t.admin}</span>
+              </button>
+              <button className="bottom-nav-item" onClick={openNotifs} aria-label="Notifications">
+                <span className="bottom-nav-icon"><Bell size={20} /></span>
+                <span>{lang === 'am' ? 'ማሳወቂያ' : 'Alerts'}</span>
+                {unreadCount > 0 && <span className="bottom-nav-badge" />}
+              </button>
+            </>
+          )}
+        </nav>
       </div>
 
       {/* Role Switcher — Restricted to permitted roles */}

@@ -724,19 +724,22 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
         </div>
       )}
 
+      {/* MOBILE FLOATING ACTION BUTTON */}
+      <button className="fab" onClick={() => setShowAddModal(true)} aria-label="Add Listing">
+        <Plus size={24} />
+      </button>
+
       {/* MODAL 1: ADD ANIMAL LISTING */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }} onClick={() => setShowAddModal(false)} />
-          <div className="card glass flex flex-column" style={{
-            position: 'relative', width: '90%', maxWidth: 540,
-            padding: 24, zIndex: 1001, borderRadius: 20, boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-            animation: 'fadeIn 0.25s ease-out'
-          }}>
-            <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
-              <h3 style={{ fontWeight: 800 }}>➕ {lang === 'am' ? 'አዲስ እንስሳ መዝግብ' : 'Add New Livestock Listing'}</h3>
+        <>
+          <div className="bottom-sheet-overlay" onClick={() => setShowAddModal(false)} />
+          <div className="bottom-sheet">
+            <div className="bottom-sheet-handle" />
+            <div className="bottom-sheet-header">
+              <h3 style={{ fontWeight: 800, fontSize: '1rem' }}>➕ {lang === 'am' ? 'አዲስ እንስሳ መዝግብ' : 'Add New Livestock Listing'}</h3>
               <button className="btn btn-ghost" onClick={() => setShowAddModal(false)} style={{ padding: 4 }}>✕</button>
             </div>
+            <div className="bottom-sheet-body">
             
             <form onSubmit={handleAddAnimal} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -910,8 +913,9 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
                 {isUploading ? <><span className="btn-spinner" style={{ marginRight: 8 }} /> {lang === 'am' ? 'በመጫን ላይ...' : 'Uploading...'}</> : (lang === 'am' ? 'እንስሳውን መዝግብ' : 'Add Listing to Queue')}
               </button>
             </form>
-          </div>
-        </div>
+            </div>{/* end bottom-sheet-body */}
+          </div>{/* end bottom-sheet */}
+        </>
       )}
 
       {/* MODAL 2: REQUEST PAYOUT */}
