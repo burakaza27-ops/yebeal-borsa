@@ -434,11 +434,11 @@ function App() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-inverse)', flexShrink: 0
               }}>
-                {user.avatar}
+                {user?.avatar}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user.fullName}
+                  {user?.fullName}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   {role === 'admin' ? t.admin : role === 'seller' ? (lang === 'am' ? 'ሻጭ' : 'Seller') : (lang === 'am' ? 'ደንበኛ' : 'Customer')}
