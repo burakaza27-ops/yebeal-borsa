@@ -8,42 +8,57 @@ import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 
+let multerInstance, supabaseClient, multer;
+
+async function initUploadDeps() {
+  if (multerInstance && supabaseClient) return { multerInstance, supabaseClient };
+  
+  const multerMod = await import('multer');
+  multer = multerMod.default || multerMod;
+  const supabaseMod = await import('@supabase/supabase-js');
+  const createClient = supabaseMod.createClient || supabaseMod.default?.createClient;
+  
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Image storage is not configured. Missing SUPABASE_URL or SUPABASE_ANON_KEY.');
+  }
+
+  supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+  multerInstance = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (_req, file, cb) => {
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jfif'];
+      if (allowed.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.jfif')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only JPEG, PNG, WebP, and JFIF images are allowed.'), false);
+      }
+    }
+  });
+
+  return { multerInstance, supabaseClient };
+}
+
 // ─── POST /api/upload/image — Upload a single image ───
 router.post('/image', authenticate, async (req, res) => {
   try {
-    // Lazy-load multer and supabase so a missing package never crashes the server
-    let multer, createClient;
+    let deps;
     try {
-      multer = (await import('multer')).default;
-      createClient = (await import('@supabase/supabase-js')).createClient;
+      deps = await initUploadDeps();
     } catch (importErr) {
-      console.error('Upload dependencies not available:', importErr.message);
+      console.error('Upload dependencies not available or not configured:', importErr.message);
+      if (importErr.message.includes('not configured')) {
+        return res.status(500).json({ error: importErr.message });
+      }
       return res.status(501).json({ error: 'Image upload is not available on this deployment. Missing dependencies.' });
     }
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return res.status(500).json({ error: 'Image storage is not configured. Missing SUPABASE_URL or SUPABASE_ANON_KEY.' });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { multerInstance: upload, supabaseClient: supabase } = deps;
     const BUCKET = 'animal-images';
-
-    // Use multer to parse the multipart upload in-memory
-    const upload = multer({
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-      fileFilter: (_req, file, cb) => {
-        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-        if (allowed.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(new Error('Only JPEG, PNG, and WebP images are allowed.'), false);
-        }
-      }
-    });
 
     // Wrap multer's single-file handler in a promise
     await new Promise((resolve, reject) => {

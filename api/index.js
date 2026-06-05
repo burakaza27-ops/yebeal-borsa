@@ -24,3 +24,9 @@ try {
 }
 
 export default app;
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
