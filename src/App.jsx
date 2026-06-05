@@ -245,6 +245,14 @@ function App() {
       </div>
     );
   }
+  
+  if (loggedIn && !user) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-deep)' }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
   const translateNotificationTitle = (title) => {
