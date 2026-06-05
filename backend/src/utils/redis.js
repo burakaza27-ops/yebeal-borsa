@@ -7,7 +7,6 @@
    to in-memory stores (graceful degradation).
    ============================================ */
 
-import Redis from 'ioredis';
 import logger from './logger.js';
 
 const redisUrl = process.env.REDIS_URL;
@@ -16,6 +15,7 @@ let redisEnabled = false;
 
 if (redisUrl) {
   try {
+    const { default: Redis } = await import('ioredis');
     logger.info(`🔌 Connecting to Redis at ${redisUrl}...`);
     // Connect to Redis with retry limit
     redisClient = new Redis(redisUrl, {

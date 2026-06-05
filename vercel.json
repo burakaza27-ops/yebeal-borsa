@@ -2,6 +2,11 @@
   "version": 2,
   "buildCommand": "prisma generate --schema=backend/prisma/schema.prisma && vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",

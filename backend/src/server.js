@@ -7,13 +7,40 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
 import cookieParser from 'cookie-parser';
-import { PrismaClient } from '@prisma/client';
 
 // Loggers & Redis utilities
 import logger, { httpLogger } from './utils/logger.js';
 import { redisClient, redisEnabled } from './utils/redis.js';
+
+// Conditionally import RedisStore only when Redis is enabled to avoid
+// crashes on Vercel if rate-limit-redis has resolution issues.
+let RedisStore = null;
+if (redisEnabled) {
+  try {
+    const mod = await import('rate-limit-redis');
+    RedisStore = mod.RedisStore;
+  } catch (err) {
+    logger.warn('⚠️ Could not load rate-limit-redis, falling back to in-memory:', err.message);
+  }
+}
+
+// Import PrismaClient with a safety wrapper for Vercel
+let PrismaClient;
+try {
+  const prismaModule = await import('@prisma/client');
+  PrismaClient = prismaModule.PrismaClient;
+} catch (err) {
+  logger.error('❌ Failed to import @prisma/client. Run `prisma generate` first:', err.message);
+  // Create a stub that throws helpful errors
+  PrismaClient = class PrismaClientStub {
+    constructor() {
+      this._stubError = err.message;
+    }
+    $connect() { return Promise.reject(new Error(`PrismaClient not available: ${this._stubError}`)); }
+    $disconnect() { return Promise.resolve(); }
+  };
+}
 
 // Route imports
 import authRoutes from './routes/auth.js';
@@ -60,12 +87,19 @@ let dbUrl = process.env.DATABASE_URL || '';
 if (dbUrl && process.env.VERCEL && !dbUrl.includes('connection_limit')) {
   dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=1&pool_timeout=10';
 }
-const prisma = globalForPrisma.prisma || new PrismaClient({
-  datasources: {
-    db: { url: dbUrl }
-  }
-});
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+let prisma;
+try {
+  prisma = globalForPrisma.prisma || new PrismaClient({
+    datasources: {
+      db: { url: dbUrl }
+    }
+  });
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+} catch (err) {
+  logger.error('❌ Failed to create PrismaClient instance:', err.message);
+  prisma = null;
+}
 
 const PORT = process.env.PORT || 3001;
 
@@ -81,6 +115,11 @@ app.use((req, res, next) => {
   if (insecureJwt) {
     return res.status(500).json({
       error: 'Insecure default JWT_SECRET detected in production. Please update it in your environment settings.'
+    });
+  }
+  if (!prisma) {
+    return res.status(500).json({
+      error: 'Database client failed to initialize. Check Prisma configuration and DATABASE_URL.'
     });
   }
   next();
@@ -123,15 +162,15 @@ app.use(cors({
   credentials: true,
 }));
 
-// Configure Rate Limiting Options with Redis support
-const rateLimitStore = redisEnabled
+// Configure Rate Limiting Options with Redis support (only if RedisStore loaded)
+const rateLimitStore = (redisEnabled && RedisStore)
   ? new RedisStore({
       sendCommand: (...args) => redisClient.call(...args),
       prefix: 'rate_limit:global:',
     })
   : undefined;
 
-const authRateLimitStore = redisEnabled
+const authRateLimitStore = (redisEnabled && RedisStore)
   ? new RedisStore({
       sendCommand: (...args) => redisClient.call(...args),
       prefix: 'rate_limit:auth:',
@@ -175,7 +214,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/wallets', walletRoutes);
 // Stricter rate limit for financial endpoints (deposits, withdrawals)
-const financialRateLimitStore = redisEnabled
+const financialRateLimitStore = (redisEnabled && RedisStore)
   ? new RedisStore({
       sendCommand: (...args) => redisClient.call(...args),
       prefix: 'rate_limit:financial:',
@@ -209,6 +248,7 @@ app.get('/api/health', (req, res) => {
     service: 'Yebeal Borsa API',
     timestamp: new Date().toISOString(),
     redis: redisEnabled ? 'connected' : 'disabled',
+    prisma: prisma ? 'initialized' : 'failed',
   });
 });
 
@@ -247,8 +287,10 @@ app.use((req, res) => {
 
 async function start() {
   try {
-    await prisma.$connect();
-    logger.info('✅ Database connected successfully');
+    if (prisma) {
+      await prisma.$connect();
+      logger.info('✅ Database connected successfully');
+    }
 
     app.listen(PORT, '0.0.0.0', () => {
       logger.info(`🚀 Yebeal Borsa API running on http://0.0.0.0:${PORT}`);
@@ -283,12 +325,12 @@ process.on('unhandledRejection', (reason, promise) => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received. Shutting down database client gracefully...');
-  await prisma.$disconnect();
+  if (prisma) await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received. Shutting down database client...');
-  await prisma.$disconnect();
+  if (prisma) await prisma.$disconnect();
   process.exit(0);
 });

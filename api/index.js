@@ -9,11 +9,16 @@ try {
   app = express();
   app.all('*', (req, res) => {
     res.status(500).json({
-      error: "Top-level Initialization Error",
+      error: "Server initialization failed",
       message: err.message,
-      stack: err.stack,
-      name: err.name,
-      env: Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('VERCEL_'))
+      stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
+      hint: "Check Vercel function logs. Common causes: missing DATABASE_URL or JWT_SECRET env vars, or Prisma client not generated (run prisma generate).",
+      envCheck: {
+        DATABASE_URL: !!process.env.DATABASE_URL,
+        JWT_SECRET: !!process.env.JWT_SECRET,
+        NODE_ENV: process.env.NODE_ENV || 'not set',
+        VERCEL: !!process.env.VERCEL,
+      }
     });
   });
 }
