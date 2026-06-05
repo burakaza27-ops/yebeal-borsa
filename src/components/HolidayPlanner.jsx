@@ -26,7 +26,7 @@ export default function HolidayPlanner({ onRefresh, lang, showToast, user }) {
   const [joinTarget, setJoinTarget] = useState('');
   const [joinAnimal, setJoinAnimal] = useState('sheep');
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositMethod, setDepositMethod] = useState('Telebirr');
+  const [depositMethod, setDepositMethod] = useState('TELEBIRR');
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -370,9 +370,9 @@ export default function HolidayPlanner({ onRefresh, lang, showToast, user }) {
                   <div className="form-group">
                     <label className="form-label">{t.paymentMethod}</label>
                     <select className="form-input form-select" value={depositMethod} onChange={e => setDepositMethod(e.target.value)}>
-                      <option value="Telebirr">{t.telebirr}</option>
-                      <option value="CBE Birr">{t.cbeBirr}</option>
-                      <option value="Bank Transfer">{lang === 'am' ? 'ባንክ ማስተላለፍ' : 'Bank Transfer'}</option>
+                      <option value="TELEBIRR">{t.telebirr}</option>
+                      <option value="CBE_BIRR">{t.cbeBirr}</option>
+                      <option value="BANK_TRANSFER">{lang === 'am' ? 'ባንክ ማስተላለፍ' : 'Bank Transfer'}</option>
                     </select>
                   </div>
 

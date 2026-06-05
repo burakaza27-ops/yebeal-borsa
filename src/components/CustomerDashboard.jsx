@@ -27,14 +27,14 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
 
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositMethod, setDepositMethod] = useState('Telebirr');
+  const [depositMethod, setDepositMethod] = useState('TELEBIRR');
   const [depositNote, setDepositNote] = useState('');
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [depositHolidayId, setDepositHolidayId] = useState('');
   const [lockAcknowledged, setLockAcknowledged] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawMethod, setWithdrawMethod] = useState('Telebirr');
+  const [withdrawMethod, setWithdrawMethod] = useState('TELEBIRR');
   const [withdrawAccount, setWithdrawAccount] = useState('');
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -529,10 +529,10 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
                   <div className="form-group">
                     <label className="form-label">{t.paymentMethod}</label>
                     <select className="form-input form-select" value={depositMethod} onChange={e => setDepositMethod(e.target.value)} id="deposit-method">
-                      <option value="Telebirr">{t.telebirr}</option>
-                      <option value="CBE Birr">{t.cbeBirr}</option>
-                      <option value="Bank Transfer">{t.bankTransfer}</option>
-                      <option value="Cash (Agent)">{t.cashAgent}</option>
+                      <option value="TELEBIRR">{t.telebirr}</option>
+                      <option value="CBE_BIRR">{t.cbeBirr}</option>
+                      <option value="BANK_TRANSFER">{t.bankTransfer}</option>
+                      <option value="CASH">{t.cashAgent}</option>
                     </select>
                   </div>
                   {/* Target Holiday Goal Dropdown for locking savings */}
@@ -686,12 +686,12 @@ export default function CustomerDashboard({ onRefresh, lang, onNavigate, showToa
                   <div className="form-group">
                     <label className="form-label">{lang === 'am' ? 'የማውጣት ዘዴ' : 'Withdrawal Method'}</label>
                     <select className="form-input form-select" value={withdrawMethod} onChange={e => setWithdrawMethod(e.target.value)} id="withdraw-method">
-                      <option value="Telebirr">{t.telebirr}</option>
-                      <option value="CBE Birr">{t.cbeBirr}</option>
-                      <option value="CBE Bank Transfer">{lang === 'am' ? 'የኢትዮጵያ ንግድ ባንክ' : 'CBE Bank Transfer'}</option>
-                      <option value="Awash Bank">{lang === 'am' ? 'አዋሽ ባንክ' : 'Awash Bank'}</option>
-                      <option value="Dashen Bank">{lang === 'am' ? 'ዳሽን ባንክ' : 'Dashen Bank'}</option>
-                      <option value="Abyssinia Bank">{lang === 'am' ? 'አቢሲንያ ባንክ' : 'Abyssinia Bank'}</option>
+                      <option value="TELEBIRR">{t.telebirr}</option>
+                      <option value="CBE_BIRR">{t.cbeBirr}</option>
+                      <option value="BANK_TRANSFER">{lang === 'am' ? 'የኢትዮጵያ ንግድ ባንክ' : 'CBE Bank Transfer'}</option>
+                      <option value="AWASH_BANK">{lang === 'am' ? 'አዋሽ ባንክ' : 'Awash Bank'}</option>
+                      <option value="DASHEN_BANK">{lang === 'am' ? 'ዳሽን ባንክ' : 'Dashen Bank'}</option>
+                      <option value="ABYSSINIA_BANK">{lang === 'am' ? 'አቢሲንያ ባንክ' : 'Abyssinia Bank'}</option>
                     </select>
                   </div>
                   <div className="form-group">
