@@ -1070,13 +1070,37 @@ export async function uploadImage(file) {
   return data.url;
 }
 
+import { z } from 'zod';
+
+const DBSchema = z.object({
+  version: z.number(),
+  isLoggedIn: z.boolean().optional(),
+  user: z.any().optional(),
+  wallets: z.array(z.any()).optional(),
+  holidays: z.array(z.any()).optional(),
+  customerHolidays: z.array(z.any()).optional(),
+  animals: z.array(z.any()).optional(),
+  transactions: z.array(z.any()).optional(),
+  notifications: z.array(z.any()).optional(),
+  orders: z.array(z.any()).optional(),
+  withdrawalRequests: z.array(z.any()).optional(),
+  allCustomers: z.array(z.any()).optional(),
+  auditLog: z.array(z.any()).optional(),
+  sellerOrders: z.array(z.any()).optional(),
+  deliveryZones: z.record(z.any()).optional()
+}).catchall(z.any());
+
 function getDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed.version === DB_VERSION) return parsed;
-      // Version mismatch — re-seed
+      if (parsed.version === DB_VERSION) {
+        // Validate payload to ensure it is structurally sound
+        const result = DBSchema.safeParse(parsed);
+        if (result.success) return result.data;
+      }
+      // Version mismatch or schema validation failed — re-seed
       return null;
     }
   } catch (e) {
@@ -1087,9 +1111,10 @@ function getDB() {
 
 function setDB(data) {
   try {
-    localStorage.setItem(DB_KEY, JSON.stringify(data));
+    const validData = DBSchema.parse(data);
+    localStorage.setItem(DB_KEY, JSON.stringify(validData));
   } catch (e) {
-    console.error('DB write error (quota?):', e);
+    console.error('DB write error (validation or quota):', e);
   }
 }
 

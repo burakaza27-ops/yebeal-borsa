@@ -128,8 +128,35 @@ app.use((req, res, next) => {
 // Request logging via Winston
 app.use(httpLogger);
 
-// Security headers
-app.use(helmet());
+// Security headers with strict Content Security Policy
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
+      connectSrc: [
+        "'self'",
+        "https://*.supabase.co",
+        process.env.FRONTEND_URL || "http://localhost:5173"
+      ].filter(Boolean),
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+    }
+  },
+  crossOriginEmbedderPolicy: false, // Allow Supabase image loading
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
 
 // Cookie parser for secure httpOnly sessions
 app.use(cookieParser());
@@ -201,6 +228,39 @@ const authLimiter = rateLimit({
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// ─── Global Input Sanitization ─────────────────────
+// Strip null bytes, detect excessive nesting, and remove script tags
+function sanitizeValue(val, depth = 0) {
+  const MAX_DEPTH = 10;
+  if (depth > MAX_DEPTH) return undefined; // drop excessively nested data
+  if (typeof val === 'string') {
+    return val
+      .replace(/\0/g, '')                           // strip null bytes
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // strip script tags
+      .replace(/javascript:/gi, '');                 // strip javascript: URIs
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => sanitizeValue(item, depth + 1)).filter(v => v !== undefined);
+  }
+  if (val && typeof val === 'object') {
+    const clean = {};
+    for (const [k, v] of Object.entries(val)) {
+      const sanitizedKey = k.replace(/\0/g, '');
+      const sanitizedVal = sanitizeValue(v, depth + 1);
+      if (sanitizedVal !== undefined) clean[sanitizedKey] = sanitizedVal;
+    }
+    return clean;
+  }
+  return val;
+}
+
+app.use((req, _res, next) => {
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeValue(req.body);
+  }
+  next();
+});
 
 // Attach Prisma to request for use in routes
 app.use((req, res, next) => {
