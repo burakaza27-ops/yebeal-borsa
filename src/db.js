@@ -1047,6 +1047,29 @@ export async function syncWithBackend() {
   return Promise.resolve();
 }
 
+export async function uploadImage(file) {
+  const API_BASE = import.meta.env.VITE_API_BASE || (window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api');
+  const token = localStorage.getItem('yebeal_borsa_token');
+  
+  const formData = new FormData();
+  formData.append('image', file);
+  
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  
+  const res = await fetch(`${API_BASE}/upload/image`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to upload image');
+  }
+  return data.url;
+}
+
 function getDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);

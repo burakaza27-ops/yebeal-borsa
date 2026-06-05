@@ -28,6 +28,7 @@ import notificationRoutes from './routes/notifications.js';
 import adminRoutes from './routes/admin.js';
 import deliveryRoutes from './routes/delivery.js';
 import ticketRoutes from './routes/tickets.js';
+import uploadRoutes from './routes/upload.js';
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -199,6 +200,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/support/tickets', ticketRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

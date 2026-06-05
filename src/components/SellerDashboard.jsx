@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   addAnimalListing, editAnimalListing, deleteAnimalListing, requestWithdrawal,
-  formatETB, formatDate, ANIMAL_EMOJIS, TRANSLATIONS, getKirchaPool
+  formatETB, formatDate, ANIMAL_EMOJIS, TRANSLATIONS, getKirchaPool, uploadImage
 } from '../db';
 import { fetchSellerOrders, fetchSellerAnimals, fetchWallets, fetchTransactions } from '../api';
 
@@ -34,6 +34,9 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingAnimalId, setEditingAnimalId] = useState(null);
+  
+  const [imageFiles, setImageFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
   
   // New Listing Form State
   const [newAnimal, setNewAnimal] = useState({
@@ -105,12 +108,26 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
       return;
     }
 
+    setIsUploading(true);
     try {
+      const imageUrls = [];
+      for (const file of imageFiles) {
+        try {
+          const url = await uploadImage(file);
+          imageUrls.push(url);
+        } catch (uploadErr) {
+          showToast(`Failed to upload image: ${file.name}`, 'error');
+          setIsUploading(false);
+          return;
+        }
+      }
+
       await addAnimalListing({
         ...newAnimal,
         price: parseFloat(newAnimal.price),
         weight: parseFloat(newAnimal.weight),
-        description: newAnimal.description || 'Grass-fed, healthy livestock'
+        description: newAnimal.description || 'Grass-fed, healthy livestock',
+        images: imageUrls
       });
       
       showToast(
@@ -121,6 +138,8 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
       );
       
       setShowAddModal(false);
+      setImageFiles([]);
+      setIsUploading(false);
       setNewAnimal({
         type: 'sheep',
         breed: '',
@@ -136,6 +155,7 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
       });
       handleRefresh();
     } catch (err) {
+      setIsUploading(false);
       showToast(err.message || 'Failed to list animal', 'error');
     }
   };
@@ -865,8 +885,29 @@ export default function SellerDashboard({ onRefresh, lang, showToast, user }) {
                 />
               </div>
 
-              <button type="submit" className="btn btn-gold w-full text-center" style={{ justifyContent: 'center', marginTop: 12 }}>
-                {lang === 'am' ? 'እንስሳውን መዝግብ' : 'Add Listing to Queue'}
+              <div className="form-group">
+                <label className="form-label">{lang === 'am' ? 'ምስሎች (እስከ 4 ምስሎች)' : 'Images (Up to 4)'}</label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {imageFiles.map((file, idx) => (
+                    <div key={idx} style={{ position: 'relative', width: 80, height: 80 }}>
+                      <img src={URL.createObjectURL(file)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border-color)' }} />
+                      <button type="button" onClick={() => setImageFiles(files => files.filter((_, i) => i !== idx))} style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', fontSize: 12 }}>✕</button>
+                    </div>
+                  ))}
+                  {imageFiles.length < 4 && (
+                    <label style={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--card-bg)', border: '2px dashed var(--border-color)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 24 }}>
+                      +
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/jpg" multiple onChange={e => {
+                        const newFiles = Array.from(e.target.files);
+                        setImageFiles(prev => [...prev, ...newFiles].slice(0, 4));
+                      }} style={{ display: 'none' }} />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-gold w-full text-center" style={{ justifyContent: 'center', marginTop: 12 }} disabled={isUploading}>
+                {isUploading ? <><span className="btn-spinner" style={{ marginRight: 8 }} /> {lang === 'am' ? 'በመጫን ላይ...' : 'Uploading...'}</> : (lang === 'am' ? 'እንስሳውን መዝግብ' : 'Add Listing to Queue')}
               </button>
             </form>
           </div>
