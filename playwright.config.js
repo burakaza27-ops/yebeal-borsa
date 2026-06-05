@@ -29,7 +29,7 @@ export default defineConfig({
       timeout: 120 * 1000,
     },
     {
-      command: 'cd backend && npm start',
+      command: 'npm --prefix backend start',
       url: 'http://localhost:3001/api/holidays', // Check public backend endpoint on correct port
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

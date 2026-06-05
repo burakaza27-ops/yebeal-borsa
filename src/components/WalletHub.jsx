@@ -43,7 +43,7 @@ export default function WalletHub({ onRefresh, lang, showToast, user }) {
   // Deposit states
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositMethod, setDepositMethod] = useState('Telebirr');
+  const [depositMethod, setDepositMethod] = useState('TELEBIRR');
   const [depositNote, setDepositNote] = useState('');
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [depositHolidayId, setDepositHolidayId] = useState('');
@@ -58,6 +58,10 @@ export default function WalletHub({ onRefresh, lang, showToast, user }) {
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
+    if (!primary) {
+      if (showToast) showToast('Wallet not loaded yet, please try again.', 'warning');
+      return;
+    }
     setLoading(true);
     try {
       await makeDeposit(primary.id, amount, depositNote || (depositHolidayId ? 'Locked Holiday Savings' : 'Deposit'), depositMethod, depositHolidayId || null);
@@ -891,10 +895,10 @@ Net Saved: ${formatETB(analytics.savedMoney)}
                   <div className="form-group">
                     <label className="form-label">{t.paymentMethod}</label>
                     <select className="form-input form-select" value={depositMethod} onChange={e => setDepositMethod(e.target.value)}>
-                      <option value="Telebirr">{t.telebirr}</option>
-                      <option value="CBE Birr">{t.cbeBirr}</option>
-                      <option value="Bank Transfer">{t.bankTransfer}</option>
-                      <option value="Cash (Agent)">{t.cashAgent}</option>
+                      <option value="TELEBIRR">{t.telebirr}</option>
+                      <option value="CBE_BIRR">{t.cbeBirr}</option>
+                      <option value="BANK_TRANSFER">{t.bankTransfer}</option>
+                      <option value="CASH">{t.cashAgent}</option>
                     </select>
                   </div>
                   
