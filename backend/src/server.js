@@ -1,7 +1,11 @@
 // Load .env only in non-Vercel environments (Vercel injects env vars directly)
 if (!process.env.VERCEL) {
   const { config } = await import('dotenv');
-  config();
+  const path = await import('path');
+  const fs = await import('fs');
+  // Try loading from backend/.env if we are in the root directory
+  const envPath = fs.existsSync('backend/.env') ? 'backend/.env' : '.env';
+  config({ path: envPath });
 }
 import express from 'express';
 import cors from 'cors';
