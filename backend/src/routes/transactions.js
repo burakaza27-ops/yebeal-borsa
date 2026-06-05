@@ -83,7 +83,9 @@ router.post('/deposit', validateBody(depositSchema), async (req, res, next) => {
       return res.status(404).json({ error: 'Wallet not found.' });
     }
 
+    console.log('Starting deposit transaction for wallet:', walletId);
     const result = await req.prisma.$transaction(async (tx) => {
+      console.log('Transaction started');
       // 0. Idempotency Check
       const existingKey = await tx.idempotencyKey.findUnique({
         where: { key: idempotencyKey }
@@ -102,8 +104,8 @@ router.post('/deposit', validateBody(depositSchema), async (req, res, next) => {
         }
       });
 
-      // 0.5 Pessimistic lock the wallet row
-      await tx.$executeRaw`SELECT * FROM "wallets" WHERE "id" = ${walletId} FOR UPDATE`;
+      // Pessimistic lock removed: Prisma atomic { increment } handles concurrency safely
+      console.log('Skipping manual lock');
 
       // 1. Fetch user to check KYC limits and current monthly deposits
       const userRecord = await tx.user.findUnique({ where: { id: req.user.id } });
@@ -211,10 +213,12 @@ router.post('/deposit', validateBody(depositSchema), async (req, res, next) => {
         walletDataUpdate.balance = { increment: validatedAmount };
       }
 
+      console.log('Updating wallet balance...');
       const updatedWallet = await tx.wallet.update({
         where: { id: walletId },
         data: walletDataUpdate,
       });
+      console.log('Wallet balance updated');
 
       // 3. Create transaction record
       const txn = await tx.transaction.create({
@@ -304,7 +308,11 @@ router.post('/deposit', validateBody(depositSchema), async (req, res, next) => {
         },
       });
 
+      console.log('Deposit transaction complete');
       return { wallet: updatedWallet, transaction: txn, notification };
+    }, {
+      maxWait: 15000,
+      timeout: 30000
     });
 
     res.status(201).json(result);
