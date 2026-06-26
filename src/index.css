@@ -2940,3 +2940,45 @@ input, select, textarea { font-family: inherit; }
     height: 52px;
   }
 }
+
+/* ============================================================
+   MARKETPLACE — Purchase Card & Wizard Enhancements
+   ============================================================ */
+
+/* ── Cash vs Installment purchase cards ─────────────────── */
+.mp-purchase-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  touch-action: manipulation;
+  text-align: center;
+  outline: none;
+}
+
+.mp-purchase-card:active {
+  transform: scale(0.96);
+}
+
+.mp-purchase-card:hover,
+.mp-purchase-card.selected {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  box-shadow: 0 0 0 3px hsla(45,100%,51%,0.12);
+}
+
+/* ── Animal card press effect ───────────────────────────── */
+.animal-card {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.animal-card:active {
+  transform: scale(0.97) !important;
+}
+

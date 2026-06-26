@@ -3,22 +3,54 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, MapPin, Weight, Star, Heart, ShoppingCart,
   Truck, User, CheckCircle, X, Package, Calendar,
-  Filter, Clock, CreditCard, ArrowUpDown, Users
+  Filter, Clock, CreditCard, ArrowUpDown, Users,
+  Plus, ChevronRight, Smartphone, Building2, Zap
 } from 'lucide-react';
 import {
   placeOrder, getDeliveryBreakdown,
   formatETB, formatDate, ANIMAL_EMOJIS, ANIMAL_TYPES, DELIVERY_ZONES,
   DELIVERY_TIME_WINDOWS, PAYMENT_METHODS_ORDER, TRANSLATIONS, getPrimaryBalance,
   toggleFavorite, getKirchaPool,
-  cancelOrder, rateOrder, createSupportTicket
+  cancelOrder, rateOrder, createSupportTicket,
+  INSTALLMENT_PLANS, INSTALLMENT_MIN_PRICE, getInstallmentPrice
 } from '../db';
 import { fetchAnimals, fetchOrders, fetchFavorites, fetchWallets } from '../api';
 
-// Helper: read a value from sessionStorage with a fallback default
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function vibrate(ms = 10) { if (navigator.vibrate) navigator.vibrate(ms); }
+
 const ssGet = (key, fallback) => {
   try { const v = sessionStorage.getItem('yb_mkt_' + key); return v !== null ? v : fallback; }
   catch { return fallback; }
 };
+
+// ─── Step Dots (reused from Dashboard) ────────────────────────────────────────
+function StepDots({ step, total }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 20 }}>
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            width: i === step ? 20 : 8, height: 8,
+            borderRadius: 'var(--radius-full)',
+            background: i <= step ? 'var(--gold)' : 'var(--bg-elevated)',
+            transition: 'all var(--transition-base)',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
+function ProgressBar({ pct, color = 'gold', height = 8 }) {
+  return (
+    <div style={{ height, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+      <div className={`progress-fill ${color}`} style={{ width: `${Math.min(100, pct)}%`, height: '100%' }} />
+    </div>
+  );
+}
 
 export default function Marketplace({ onRefresh, lang, showToast, user }) {
   const queryClient = useQueryClient();
@@ -44,30 +76,33 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState(() => ssGet('activeTab', 'browse'));
 
-  // Persist filter state to sessionStorage whenever any filter value changes
   useEffect(() => {
     const vals = { search, typeFilter, priceRange, locationFilter, ratingFilter, dateFilter, certFilter, sortBy, activeTab };
     Object.entries(vals).forEach(([k, v]) => { try { sessionStorage.setItem('yb_mkt_' + k, v); } catch {} });
   }, [search, typeFilter, priceRange, locationFilter, ratingFilter, dateFilter, certFilter, sortBy, activeTab]);
+
   const [selectedAnimal, setSelectedAnimal] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [activePool, setActivePool] = useState(null);
+  const [loadingPool, setLoadingPool] = useState(false);
+
+  // ── Order Wizard State ──────────────────────────────────────────────────
+  const [orderStep, setOrderStep] = useState(0); // 0=type, 1=delivery, 2=payment, 3=confirm
+  const [purchaseType, setPurchaseType] = useState('cash'); // 'cash' | 'installment'
+  const [installmentMonths, setInstallmentMonths] = useState(6);
+  const [kirchaShares, setKirchaShares] = useState(3);
   const [deliveryOption, setDeliveryOption] = useState('delivery');
   const [deliveryZone, setDeliveryZone] = useState('Megenagna');
   const [deliveryTimeWindow, setDeliveryTimeWindow] = useState(DELIVERY_TIME_WINDOWS[0]);
-  const [paymentMethod, setPaymentMethod] = useState('wallet');
-  const [kirchaShares, setKirchaShares] = useState(3);
-  const [orderSuccess, setOrderSuccess] = useState(false);
-  const [activePool, setActivePool] = useState(null);
-  const [loadingPool, setLoadingPool] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-
-  // New checkout fields
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('wallet');
   const [vetInsurance, setVetInsurance] = useState(false);
 
-  // New order action fields
+  // ── Order Action Modals ─────────────────────────────────────────────────
   const [cancelOrderId, setCancelOrderId] = useState(null);
   const [cancelReasonText, setCancelReasonText] = useState('');
   const [rateOrderId, setRateOrderId] = useState(null);
@@ -77,70 +112,13 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
-  const handleConfirmCancel = async () => {
-    setActionLoading(true);
-    try {
-      await cancelOrder(cancelOrderId, cancelReasonText);
-      showToast(
-        lang === 'am' ? 'ትዕዛዙ ተሰርዟል፤ ተመላሽ ክፍያው እየተመረመረ ነው' : 'Order cancelled. Refund pending admin review.',
-        'success'
-      );
-      setCancelOrderId(null);
-      setCancelReasonText('');
-      refresh();
-    } catch (err) {
-      showToast(err.message || 'Failed to cancel order', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleConfirmRate = async () => {
-    setActionLoading(true);
-    try {
-      await rateOrder(rateOrderId, ratingValue);
-      showToast(
-        lang === 'am' ? 'ደረጃ ስኬታማ በሆነ መንገድ ተሰጥቷል! እናመሰግናለን።' : 'Seller rated successfully! Thank you.',
-        'success'
-      );
-      setRateOrderId(null);
-      refresh();
-    } catch (err) {
-      showToast(err.message || 'Failed to rate seller', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleConfirmClaim = async () => {
-    setActionLoading(true);
-    try {
-      const title = `Insurance Claim for Order #${claimOrderId.slice(-6)}`;
-      await createSupportTicket(title, claimMessage, 'INSURANCE_CLAIM');
-      showToast(
-        lang === 'am' ? 'የኢንሹራንስ ካሳ ጥያቄዎ በተሳካ ሁኔታ ተልኳል 🛡️' : 'Insurance claim submitted successfully! 🛡️',
-        'success'
-      );
-      setClaimOrderId(null);
-      setClaimMessage('');
-      refresh();
-    } catch (err) {
-      showToast(err.message || 'Failed to submit claim', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const translateAnimal = (type) => lang === 'am' ? { sheep: 'በግ', goat: 'ፍየል', cattle: 'ከብት', hen: 'ዶሮ', kircha: 'ኪርቻ' }[type] || type : type;
   const translateMethod = (m) => {
     const map = {
       'Telebirr': lang === 'am' ? 'ቴሌቢር' : 'Telebirr',
       'CBE Birr': lang === 'am' ? 'ሲቢኢ ብር' : 'CBE Birr',
       'Bank Transfer': lang === 'am' ? 'ባንክ ማስተላለፍ' : 'Bank Transfer',
-      'Bank': lang === 'am' ? 'ባንክ' : 'Bank',
       'Wallet': lang === 'am' ? 'የኪስ ቦርሳ' : 'Wallet',
-      'Transfer': lang === 'am' ? 'ማስተላለፍ' : 'Transfer',
-      'Cash (Agent)': lang === 'am' ? 'ጥሬ ገንዘብ (ወኪል)' : 'Cash (Agent)',
       'Cash on Delivery': lang === 'am' ? 'ሲረከቡ በጥሬ ገንዘብ' : 'Cash on Delivery',
     };
     return map[m] || m;
@@ -172,6 +150,37 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
     }
   };
 
+  const handleConfirmCancel = async () => {
+    setActionLoading(true);
+    try {
+      await cancelOrder(cancelOrderId, cancelReasonText);
+      showToast(lang === 'am' ? 'ትዕዛዙ ተሰርዟል፤ ተመላሽ ክፍያው እየተመረመረ ነው' : 'Order cancelled. Refund pending admin review.', 'success');
+      setCancelOrderId(null); setCancelReasonText(''); refresh();
+    } catch (err) { showToast(err.message || 'Failed to cancel order', 'error'); }
+    finally { setActionLoading(false); }
+  };
+
+  const handleConfirmRate = async () => {
+    setActionLoading(true);
+    try {
+      await rateOrder(rateOrderId, ratingValue);
+      showToast(lang === 'am' ? 'ደረጃ ስኬታማ በሆነ መንገድ ተሰጥቷል!' : 'Seller rated successfully!', 'success');
+      setRateOrderId(null); refresh();
+    } catch (err) { showToast(err.message || 'Failed to rate seller', 'error'); }
+    finally { setActionLoading(false); }
+  };
+
+  const handleConfirmClaim = async () => {
+    setActionLoading(true);
+    try {
+      const title = `Insurance Claim for Order #${claimOrderId.slice(-6)}`;
+      await createSupportTicket(title, claimMessage, 'INSURANCE_CLAIM');
+      showToast(lang === 'am' ? 'የኢንሹራንስ ካሳ ጥያቄዎ ተልኳል 🛡️' : 'Insurance claim submitted! 🛡️', 'success');
+      setClaimOrderId(null); setClaimMessage(''); refresh();
+    } catch (err) { showToast(err.message || 'Failed to submit claim', 'error'); }
+    finally { setActionLoading(false); }
+  };
+
   const locations = [...new Set(animals.map(a => a.locationArea))];
 
   const filtered = animals
@@ -200,6 +209,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
       return 0;
     });
 
+  // ── Open detail / order ─────────────────────────────────────────────────
   const openDetail = async (animal) => {
     setSelectedAnimal(animal);
     setShowDetail(true);
@@ -208,31 +218,27 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
       try {
         const pool = await getKirchaPool(animal.id);
         setActivePool(pool);
-        if (pool && pool.bookedShares > 0) {
-          setKirchaShares(pool.totalShares);
-        } else {
-          setKirchaShares(5); // default
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingPool(false);
-      }
-    } else {
-      setActivePool(null);
-    }
+        if (pool && pool.bookedShares > 0) setKirchaShares(pool.totalShares);
+        else setKirchaShares(5);
+      } catch (err) { console.error(err); }
+      finally { setLoadingPool(false); }
+    } else { setActivePool(null); }
   };
 
   const openOrder = async (animal) => {
+    vibrate();
     setSelectedAnimal(animal);
+    setShowDetail(false);
+    setOrderSuccess(false);
+    setOrderStep(0);
+    setPurchaseType('cash');
+    setInstallmentMonths(6);
     setDeliveryOption('delivery');
     setDeliveryZone('Megenagna');
     setDeliveryTimeWindow(DELIVERY_TIME_WINDOWS[0]);
-    setPaymentMethod('wallet');
-    setShowDetail(false);
-    setOrderSuccess(false);
     setDeliveryAddress('');
     setDeliveryDate('');
+    setPaymentMethod('wallet');
     setVetInsurance(false);
 
     if (animal.type === 'kircha') {
@@ -240,68 +246,84 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
       try {
         const pool = await getKirchaPool(animal.id);
         setActivePool(pool);
-        if (pool && pool.bookedShares > 0) {
-          setKirchaShares(pool.totalShares);
-        } else {
-          setKirchaShares(5);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingPool(false);
-      }
-    } else {
-      setActivePool(null);
-    }
+        if (pool && pool.bookedShares > 0) setKirchaShares(pool.totalShares);
+        else setKirchaShares(5);
+      } catch (err) { console.error(err); }
+      finally { setLoadingPool(false); }
+    } else { setActivePool(null); }
     setShowOrder(true);
   };
 
+  // ── Price calculations ──────────────────────────────────────────────────
+  const getBasePrice = () => {
+    if (!selectedAnimal) return 0;
+    return selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price;
+  };
+
+  const getOrderTotal = () => {
+    const basePrice = getBasePrice();
+    let price = basePrice;
+    if (purchaseType === 'installment') {
+      const inst = getInstallmentPrice(basePrice, installmentMonths);
+      if (inst) price = inst.totalPrice;
+    }
+    const insuranceFee = vetInsurance ? Math.round(basePrice * 0.05) : 0;
+    if (deliveryOption !== 'delivery') return price + insuranceFee;
+    const bd = getDeliveryBreakdown(selectedAnimal.locationArea, deliveryZone, selectedAnimal.type, basePrice);
+    return bd.grandTotal - basePrice + price + insuranceFee;
+  };
+
+  const breakdown = selectedAnimal && deliveryOption === 'delivery'
+    ? (() => {
+        const basePrice = getBasePrice();
+        return getDeliveryBreakdown(selectedAnimal.locationArea, deliveryZone, selectedAnimal.type, basePrice);
+      })()
+    : null;
+
+  // ── Step navigation ─────────────────────────────────────────────────────
+  const goToNextStep = () => {
+    vibrate();
+    if (orderStep === 1 && deliveryOption === 'delivery') {
+      if (!deliveryAddress.trim()) {
+        showToast(lang === 'am' ? 'እባክዎ የማድረሻ አድራሻ ያስገቡ' : 'Please enter a delivery address', 'warning');
+        return;
+      }
+      if (!deliveryDate) {
+        showToast(lang === 'am' ? 'እባክዎ የማድረሻ ቀን ይምረጡ' : 'Please select a delivery date', 'warning');
+        return;
+      }
+    }
+    setOrderStep(s => s + 1);
+  };
+
+  const goBack = () => { vibrate(); setOrderStep(s => s - 1); };
+
+  // ── Confirm order ───────────────────────────────────────────────────────
   const confirmOrder = async () => {
     if (!selectedAnimal) return;
-    
-    if (deliveryOption === 'delivery' && !deliveryAddress.trim()) {
-      const msg = lang === 'am' ? 'እባክዎ የማድረሻ አድራሻ ያስገቡ።' : 'Please enter a delivery address.';
-      if (showToast) showToast(msg, 'warning');
-      else alert(msg);
-      return;
-    }
-
-    if (deliveryOption === 'delivery' && !deliveryDate) {
-      const msg = lang === 'am' ? 'እባክዎ የማድረሻ ቀን ይምረጡ።' : 'Please select a delivery date.';
-      if (showToast) showToast(msg, 'warning');
-      else alert(msg);
-      return;
-    }
-
     const balance = getPrimaryBalance();
     const total = getOrderTotal();
-    
+
     if (paymentMethod === 'wallet' && balance < total) {
-      if (showToast) {
-        showToast(
-          lang === 'am'
-            ? `የኪስ ቦርሳ ቀሪ ሂሳብ በቂ አይደለም። ያለዎት ${formatETB(balance)} ነው ነገር ግን ${formatETB(total)} ያስፈልጋል።`
-            : `Insufficient wallet balance. You have ${formatETB(balance)} but need ${formatETB(total)}.`,
-          'warning'
-        );
-      } else {
-        alert(`Insufficient wallet balance. You have ${formatETB(balance)} but need ${formatETB(total)}.`);
-      }
+      showToast(
+        lang === 'am'
+          ? `የኪስ ቦርሳ ቀሪ ሂሳብ በቂ አይደለም። ${formatETB(balance)} አለዎት ነገር ግን ${formatETB(total)} ያስፈልጋል።`
+          : `Insufficient wallet balance. You have ${formatETB(balance)} but need ${formatETB(total)}.`,
+        'warning'
+      );
       return;
     }
 
-    // 100 ETB Reserve check
     if (paymentMethod === 'wallet' && (balance - total) < 100) {
-      const msg = lang === 'am'
-        ? `ትዕዛዝ ማከናወን አይቻልም። ከግዢው በኋላ ቢያንስ 100 ብር መያዣ በኪስ ቦርሳዎ ውስጥ መቅረት አለበት (ያለዎት ቀሪ ሂሳብ: ${formatETB(balance)})።`
-        : `Cannot complete purchase. A minimum wallet reserve of 100 ETB must remain in your wallet after checkout.`;
-      if (showToast) showToast(msg, 'warning');
-      else alert(msg);
+      showToast(lang === 'am' ? 'ከግዢ በኋላ ቢያንስ 100 ብር መያዣ መቅረት አለበት!' : 'A minimum 100 ETB reserve must remain after purchase!', 'warning');
       return;
     }
 
     setActionLoading(true);
     try {
+      const basePrice = getBasePrice();
+      const instInfo = purchaseType === 'installment' ? getInstallmentPrice(basePrice, installmentMonths) : null;
+
       await placeOrder(
         selectedAnimal.id,
         deliveryOption,
@@ -313,44 +335,27 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
           deliveryAddress: deliveryOption === 'delivery' ? deliveryAddress.trim() : null,
           deliveryDate: deliveryOption === 'delivery' ? deliveryDate : null,
           insuranceAdded: vetInsurance,
+          purchaseType,
+          installmentPlan: instInfo ? {
+            months: instInfo.months,
+            monthlyPayment: instInfo.monthlyPayment,
+            totalPrice: instInfo.totalPrice,
+            paidInstallments: purchaseType === 'installment' ? 1 : 0,
+          } : null,
         }
       );
+      vibrate(20);
       setOrderSuccess(true);
-      if (showToast) {
-        showToast(lang === 'am' ? 'ትዕዛዝዎ በስኬት ተመዝግቧል! 🎉' : 'Order placed successfully! 🎉', 'success');
-      }
+      showToast(lang === 'am' ? 'ትዕዛዝዎ ተመዝግቧል! 🎉' : 'Order placed successfully! 🎉', 'success');
       setTimeout(() => { setShowOrder(false); setOrderSuccess(false); refresh(); }, 2000);
     } catch (err) {
-      if (showToast) {
-        showToast(err.message || 'Failed to place order', 'error');
-      } else {
-        alert(err.message || 'Failed to place order');
-      }
-    } finally {
-      setActionLoading(false);
-    }
+      showToast(err.message || 'Failed to place order', 'error');
+    } finally { setActionLoading(false); }
   };
- 
-  const getOrderTotal = () => {
-    if (!selectedAnimal) return 0;
-    const basePrice = selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price;
-    const insuranceFee = vetInsurance ? Math.round(basePrice * 0.05) : 0;
-    if (deliveryOption !== 'delivery') return basePrice + insuranceFee;
-    const bd = getDeliveryBreakdown(selectedAnimal.locationArea, deliveryZone, selectedAnimal.type, basePrice);
-    return bd.grandTotal + insuranceFee;
-  };
- 
-  const breakdown = selectedAnimal && deliveryOption === 'delivery'
-    ? (() => {
-        const basePrice = selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price;
-        return getDeliveryBreakdown(selectedAnimal.locationArea, deliveryZone, selectedAnimal.type, basePrice);
-      })()
-    : null;
 
   const clearFilters = () => {
     setTypeFilter('all'); setPriceRange('all'); setLocationFilter('all');
     setRatingFilter('all'); setDateFilter(''); setCertFilter('all'); setSearch(''); setSortBy('default');
-    // Also clear sessionStorage so filters are truly reset
     ['search','typeFilter','priceRange','locationFilter','ratingFilter','dateFilter','certFilter','sortBy'].forEach(k => {
       try { sessionStorage.removeItem('yb_mkt_' + k); } catch {}
     });
@@ -358,11 +363,22 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
 
   const activeFilterCount = [typeFilter !== 'all', priceRange !== 'all', locationFilter !== 'all', ratingFilter !== 'all', dateFilter !== '', certFilter !== 'all'].filter(Boolean).length;
 
+  // ── Payment method cards for wizard ─────────────────────────────────────
+  const METHODS = [
+    { key: 'wallet', icon: <CreditCard size={20} />, label: lang === 'am' ? 'ከኪስ ቦርሳ' : 'Wallet', color: 'var(--gold)' },
+    { key: 'telebirr', icon: <Smartphone size={20} />, label: lang === 'am' ? 'ቴሌቢር' : 'Telebirr', color: 'var(--green)' },
+    { key: 'cbe', icon: <Building2 size={20} />, label: lang === 'am' ? 'ሲቢኢ ብር' : 'CBE Birr', color: 'var(--blue)' },
+    { key: 'cod', icon: <Zap size={20} />, label: lang === 'am' ? 'ሲረከቡ ይከፈላል' : 'Cash on Delivery', color: 'var(--purple)' },
+  ];
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  RENDER
+  // ════════════════════════════════════════════════════════════════════════
   return (
     <div className="fade-in">
       <div className="page-header">
         <h2>{t.marketplace} 🏪</h2>
-        <p>Browse quality livestock from verified sellers across Addis Ababa</p>
+        <p>{lang === 'am' ? 'ከተረጋገጡ ሻጮች ጥራት ያላቸውን እንስሳት ይመልከቱ' : 'Browse quality livestock from verified sellers across Addis Ababa'}</p>
       </div>
 
       <div className="tabs" style={{ maxWidth: 520 }}>
@@ -377,6 +393,9 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
         </button>
       </div>
 
+      {/* ═══════════════════════════════════════════════════════════════
+          BROWSE / FAVORITES TAB
+      ═══════════════════════════════════════════════════════════════ */}
       {(activeTab === 'browse' || activeTab === 'favorites') && (
         <>
           {/* Search + Sort bar */}
@@ -395,8 +414,8 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
               <ArrowUpDown size={14} color="var(--text-muted)" />
               <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)} id="marketplace-sort">
                 <option value="default">{lang === 'am' ? 'ነባሪ' : 'Default'}</option>
-                <option value="price-asc">{lang === 'am' ? 'ዋጋ: ከዝቅተኛ ወደ ከፍተኛ' : 'Price: Low → High'}</option>
-                <option value="price-desc">{lang === 'am' ? 'ዋጋ: ከከፍተኛ ወደ ዝቅተኛ' : 'Price: High → Low'}</option>
+                <option value="price-asc">{lang === 'am' ? 'ዋጋ: ከዝቅተኛ' : 'Price: Low → High'}</option>
+                <option value="price-desc">{lang === 'am' ? 'ዋጋ: ከከፍተኛ' : 'Price: High → Low'}</option>
                 <option value="rating">{lang === 'am' ? 'ከፍተኛ ደረጃ' : 'Top Rated'}</option>
                 <option value="weight">{lang === 'am' ? 'ከባድ እንስሳ' : 'Heaviest'}</option>
                 <option value="newest">{lang === 'am' ? 'አዲስ' : 'Newest'}</option>
@@ -487,11 +506,13 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
             </div>
           ) : (
             <div className="animal-grid">
-              {filtered.map(animal => {
+              {filtered.map((animal, idx) => {
                 const isFav = favorites.includes(animal.id);
                 const isKircha = animal.type === 'kircha';
+                const canInstall = animal.price >= INSTALLMENT_MIN_PRICE;
+                const defaultInst = canInstall ? getInstallmentPrice(animal.price, 6) : null;
                 return (
-                  <div key={animal.id} className="animal-card" onClick={() => openDetail(animal)} style={{ cursor: 'pointer' }}>
+                  <div key={animal.id} className="animal-card animate-in" onClick={() => openDetail(animal)} style={{ cursor: 'pointer', animationDelay: `${idx * 0.04}s` }}>
                     <div className="animal-card-image">
                       <span style={{ fontSize: isKircha ? '4.5rem' : '4rem' }}>{ANIMAL_EMOJIS[animal.type] || '🐾'}</span>
                       <div className="animal-card-badge" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
@@ -511,14 +532,14 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                         <span><Star size={13} fill="var(--gold)" color="var(--gold)" /> {animal.sellerRating}</span>
                         {animal.age && <span><Clock size={13} /> {animal.age}</span>}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justify_content: 'space-between', marginTop: 4 }}>
-                        <div>
-                          <div className="animal-card-price">{formatETB(animal.price)}</div>
-                          {isKircha && <div style={{ fontSize: '0.68rem', color: 'var(--purple)', fontWeight: 600 }}>÷ {3} {lang === 'am' ? 'ቤተሰቦች' : 'families'} = {formatETB(Math.round(animal.price / 3))} {lang === 'am' ? 'በአንድ ቤተሰብ' : 'each'}</div>}
-                        </div>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          <Calendar size={10} /> {formatDate(animal.availableDate)}
-                        </span>
+                      <div style={{ marginTop: 6 }}>
+                        <div className="animal-card-price">{formatETB(animal.price)}</div>
+                        {isKircha && <div style={{ fontSize: '0.68rem', color: 'var(--purple)', fontWeight: 600 }}>÷ {3} {lang === 'am' ? 'ቤተሰቦች' : 'families'} = {formatETB(Math.round(animal.price / 3))} {lang === 'am' ? 'በአንድ ቤተሰብ' : 'each'}</div>}
+                        {canInstall && !isKircha && defaultInst && (
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            📅 {lang === 'am' ? 'ወይም' : 'or'} {formatETB(defaultInst.monthlyPayment)}/{lang === 'am' ? 'ወር' : 'mo'} × 6
+                          </div>
+                        )}
                       </div>
                       <div className="animal-card-footer">
                         <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={e => { e.stopPropagation(); openOrder(animal); }}>
@@ -537,11 +558,13 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
         </>
       )}
 
-      {/* Orders Tab */}
+      {/* ═══════════════════════════════════════════════════════════════
+          ORDERS TAB
+      ═══════════════════════════════════════════════════════════════ */}
       {activeTab === 'orders' && (
         <div>
           {orders.length === 0 ? (
-            <div className="empty-state"><div className="empty-state-icon">📦</div><h3>{lang === 'am' ? 'ምንም ትዕዛዝ የለም' : 'No Orders Yet'}</h3><p>{lang === 'am' ? 'ገበያውን ይጎብኙ እና የመጀመሪያዎን ትዕዛዝ ያስገቡ' : 'Browse the marketplace and place your first order'}</p></div>
+            <div className="empty-state"><div className="empty-state-icon">📦</div><h3>{lang === 'am' ? 'ምንም ትዕዛዝ የለም' : 'No Orders Yet'}</h3><p>{lang === 'am' ? 'ገበያውን ይጎብኙ' : 'Browse the marketplace and place your first order'}</p></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {orders.map(order => {
@@ -559,6 +582,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                   return map[status] || { className: 'badge-muted', text: status };
                 };
                 const sd = getStatusDisplay(order.deliveryStatus);
+                const instPlan = order.installmentPlan;
                 return (
                   <div key={order.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div className="flex items-center justify-between">
@@ -572,7 +596,12 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                             #{order.id.slice(-6)} · {formatDate(order.createdAt)}
                             {order.deliveryTimeWindow && <> · {order.deliveryTimeWindow}</>}
                           </div>
-                          {order.paymentMethod && (
+                          {order.purchaseType === 'installment' && (
+                            <span className="badge badge-gold" style={{ marginTop: 4, fontSize: '0.65rem' }}>
+                              📅 {lang === 'am' ? 'የእኩብ ክፍያ' : 'Installment'}
+                            </span>
+                          )}
+                          {order.paymentMethod && order.purchaseType !== 'installment' && (
                             <span className="badge badge-muted" style={{ marginTop: 4, fontSize: '0.65rem' }}>
                               {translateMethod(order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod === 'telebirr' ? 'Telebirr' : 'Wallet')}
                             </span>
@@ -581,11 +610,29 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '1.1rem' }}>{formatETB(order.totalPrice)}</div>
-                        <span className={`badge ${sd.className}`}>
-                          {sd.text}
-                        </span>
+                        <span className={`badge ${sd.className}`}>{sd.text}</span>
                       </div>
                     </div>
+
+                    {/* Installment progress bar */}
+                    {instPlan && (
+                      <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 12, border: '1px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.78rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            📅 {lang === 'am' ? 'የክፍያ ሂደት' : 'Payment Progress'}
+                          </span>
+                          <span style={{ fontWeight: 700, color: 'var(--gold)' }}>
+                            {instPlan.paidInstallments || 1}/{instPlan.months}
+                          </span>
+                        </div>
+                        <ProgressBar pct={((instPlan.paidInstallments || 1) / instPlan.months) * 100} />
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                          {formatETB(instPlan.monthlyPayment)}/{lang === 'am' ? 'ወር' : 'mo'} × {instPlan.months} {lang === 'am' ? 'ወራት' : 'months'}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Delivery tracker */}
                     {order.deliveryOption === 'delivery' && order.deliverySteps?.length > 0 && (
                       <div className="delivery-tracker">
                         {order.deliverySteps.map((step, i) => {
@@ -603,96 +650,55 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                       </div>
                     )}
 
-                    {/* Delivery / Address Details */}
+                    {/* Delivery info */}
                     {order.deliveryOption === 'delivery' && (
                       <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
-                        <div style={{ marginBottom: 4 }}>
-                          <strong>{lang === 'am' ? '📍 የማድረሻ አድራሻ: ' : '📍 Delivery Address: '}</strong> {order.deliveryAddress || 'N/A'}
-                        </div>
-                        <div style={{ marginBottom: 4 }}>
-                          <strong>{lang === 'am' ? '📅 የማድረሻ ቀን: ' : '📅 Delivery Date: '}</strong> {order.deliveryDate ? formatDate(order.deliveryDate) : 'N/A'}
-                        </div>
-                        {order.deliveryFee > 0 && (
-                          <div>
-                            <strong>{lang === 'am' ? '💵 የማድረሻ ክፍያ: ' : '💵 Delivery Fee: '}</strong> {formatETB(order.deliveryFee)}
-                          </div>
-                        )}
+                        <div style={{ marginBottom: 4 }}><strong>{lang === 'am' ? '📍 አድራሻ: ' : '📍 Address: '}</strong>{order.deliveryAddress || 'N/A'}</div>
+                        <div style={{ marginBottom: 4 }}><strong>{lang === 'am' ? '📅 ቀን: ' : '📅 Date: '}</strong>{order.deliveryDate ? formatDate(order.deliveryDate) : 'N/A'}</div>
+                        {order.deliveryFee > 0 && <div><strong>{lang === 'am' ? '💵 ክፍያ: ' : '💵 Fee: '}</strong>{formatETB(order.deliveryFee)}</div>}
                       </div>
                     )}
 
-                    {/* Vet Insurance Status */}
                     {order.insuranceAdded && (
-                      <div style={{ 
-                        fontSize: '0.8rem', color: 'var(--green-bright)', fontWeight: 600,
-                        display: 'flex', alignItems: 'center', gap: 6, background: 'var(--green-soft)',
-                        padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid hsla(120,72%,45%,0.15)'
-                      }}>
-                        🛡️ <span>{lang === 'am' ? `የእንስሳት ሐኪም ዋስትና ንቁ ነው (+${formatETB(order.insurancePremium)})` : `Vet Insurance Active (+${formatETB(order.insurancePremium)})`}</span>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--green-bright)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--green-soft)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid hsla(120,72%,45%,0.15)' }}>
+                        🛡️ <span>{lang === 'am' ? `ዋስትና ንቁ (+${formatETB(order.insurancePremium)})` : `Insurance Active (+${formatETB(order.insurancePremium)})`}</span>
                       </div>
                     )}
 
-                    {/* Cancellation Details */}
                     {order.deliveryStatus === 'cancelled' && (
-                      <div style={{ 
-                        fontSize: '0.82rem', color: 'var(--red)', background: 'var(--red-soft)', 
-                        padding: 10, borderRadius: 'var(--radius-sm)', border: '1px solid hsla(0,72%,55%,0.15)' 
-                      }}>
-                        <div style={{ marginBottom: 4 }}>
-                          <strong>{lang === 'am' ? 'የተሰረዘበት ምክንያት: ' : 'Cancellation Reason: '}</strong> {order.cancelReason || 'N/A'}
-                        </div>
-                        {order.cancelledAt && (
-                          <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>
-                            {lang === 'am' ? 'የተሰረዘበት ቀን: ' : 'Cancelled At: '} {formatDate(order.cancelledAt)}
-                          </div>
-                        )}
+                      <div style={{ fontSize: '0.82rem', color: 'var(--red)', background: 'var(--red-soft)', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px solid hsla(0,72%,55%,0.15)' }}>
+                        <div style={{ marginBottom: 4 }}><strong>{lang === 'am' ? 'ምክንያት: ' : 'Reason: '}</strong>{order.cancelReason || 'N/A'}</div>
+                        {order.cancelledAt && <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>{lang === 'am' ? 'ቀን: ' : 'At: '}{formatDate(order.cancelledAt)}</div>}
                       </div>
                     )}
 
-                    {/* Actions Bar */}
+                    {/* Actions */}
                     <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10, flexWrap: 'wrap' }}>
                       {(order.deliveryStatus === 'in_transit' || order.deliveryStatus === 'processing') && (
-                        <button 
-                          className="btn btn-primary btn-sm" 
-                          onClick={() => alert(lang === 'am' ? 'የትዕዛዝ መከታተያ በቅርቡ ይመጣል' : 'Live tracking simulation... Driver is 15 mins away.')}
-                        >
-                          📍 {lang === 'am' ? 'ትዕዛዝ ተከታተል' : 'Track Order'}
+                        <button className="btn btn-primary btn-sm" onClick={() => alert(lang === 'am' ? 'መከታተያ በቅርቡ ይመጣል' : 'Live tracking: Driver is 15 mins away.')}>
+                          📍 {lang === 'am' ? 'ተከታተል' : 'Track Order'}
                         </button>
                       )}
-                      
                       {order.deliveryStatus !== 'delivered' && order.deliveryStatus !== 'completed' && order.deliveryStatus !== 'cancelled' && (
-                        <button 
-                          className="btn btn-danger btn-sm" 
-                          onClick={() => { setCancelOrderId(order.id); setCancelReasonText(''); }}
-                        >
-                          {lang === 'am' ? 'ትዕዛዝ ሰርዝ ✗' : 'Cancel Order ✗'}
+                        <button className="btn btn-danger btn-sm" onClick={() => { setCancelOrderId(order.id); setCancelReasonText(''); }}>
+                          {lang === 'am' ? 'ሰርዝ ✗' : 'Cancel ✗'}
                         </button>
                       )}
-                      
                       {order.deliveryStatus === 'delivered' && (
                         <>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            onClick={() => { setRateOrderId(order.id); setRatingValue(5); }}
-                          >
-                            ⭐️ {lang === 'am' ? 'ሻጭ ደረጃ ስጥ' : 'Rate Seller'}
+                          <button className="btn btn-secondary btn-sm" onClick={() => { setRateOrderId(order.id); setRatingValue(5); }}>
+                            ⭐️ {lang === 'am' ? 'ደረጃ ስጥ' : 'Rate Seller'}
                           </button>
-                          <button 
-                            className="btn btn-danger btn-sm" 
-                            style={{ background: 'var(--bg-elevated)', color: 'var(--red)', border: '1px solid var(--border-light)' }}
-                            onClick={() => alert(lang === 'am' ? 'ችግር ሪፖርት አድርግ' : 'Issue reporting form opened.')}
-                          >
-                            ⚠️ {lang === 'am' ? 'ችግር ሪፖርት አድርግ' : 'Report Issue'}
+                          <button className="btn btn-danger btn-sm" style={{ background: 'var(--bg-elevated)', color: 'var(--red)', border: '1px solid var(--border-light)' }}
+                            onClick={() => alert(lang === 'am' ? 'ችግር ሪፖርት' : 'Issue reporting form opened.')}>
+                            ⚠️ {lang === 'am' ? 'ሪፖርት' : 'Report'}
                           </button>
                         </>
                       )}
-
                       {order.deliveryStatus === 'delivered' && order.insuranceAdded && (
-                        <button 
-                          className="btn btn-sm" 
-                          style={{ background: 'linear-gradient(135deg, var(--purple), hsla(270,70%,60%,0.85))', color: 'white', border: 'none' }}
-                          onClick={() => { setClaimOrderId(order.id); setClaimMessage(''); }}
-                        >
-                          🛡️ {lang === 'am' ? 'የኢንሹራንስ ካሳ ጠይቅ' : 'File Insurance Claim'}
+                        <button className="btn btn-sm" style={{ background: 'linear-gradient(135deg, var(--purple), hsla(270,70%,60%,0.85))', color: 'white', border: 'none' }}
+                          onClick={() => { setClaimOrderId(order.id); setClaimMessage(''); }}>
+                          🛡️ {lang === 'am' ? 'ካሳ ጠይቅ' : 'File Claim'}
                         </button>
                       )}
                     </div>
@@ -704,7 +710,9 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
         </div>
       )}
 
-      {/* Animal Detail Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          ANIMAL DETAIL MODAL
+      ═══════════════════════════════════════════════════════════════ */}
       {showDetail && selectedAnimal && (
         <div className="modal-overlay" onClick={() => setShowDetail(false)}>
           <div className="modal scale-in" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
@@ -716,73 +724,31 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
               <div style={{ height: 160, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '5rem', marginBottom: 20 }}>
                 {ANIMAL_EMOJIS[selectedAnimal.type]}
               </div>
+
               {selectedAnimal.type === 'kircha' && (
                 <div style={{ background: 'linear-gradient(135deg, hsla(270,70%,60%,0.1), hsla(210,100%,60%,0.05))', border: '1px solid hsla(270,70%,60%,0.2)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ fontWeight: 700, color: 'var(--purple)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Users size={16} />
-                      {lang === 'am' ? 'የኪርቻ የጋራ ግዥ ገንዳ' : 'Kircha Group Pool'}
+                      <Users size={16} /> {lang === 'am' ? 'የኪርቻ ገንዳ' : 'Kircha Group Pool'}
                     </div>
-                    {activePool && activePool.bookedShares > 0 && (
-                      <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
-                        {lang === 'am' ? 'ገንዳው ተጀምሯል' : 'Pool Started'}
-                      </span>
-                    )}
+                    {activePool && activePool.bookedShares > 0 && <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>{lang === 'am' ? 'ተጀምሯል' : 'Pool Started'}</span>}
                   </div>
-
-                  {/* Pool Progress Bar */}
                   {loadingPool ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', marginBottom: 16 }}>
-                      <span className="spinner-sm" />
-                      {lang === 'am' ? 'የኪርቻ መረጃ በመጫን ላይ...' : 'Loading pool details...'}
-                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}><span className="spinner-sm" /> {lang === 'am' ? 'በመጫን ላይ...' : 'Loading...'}</div>
                   ) : activePool ? (
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: 4, color: 'var(--text-secondary)' }}>
-                        <span>
-                          {lang === 'am'
-                            ? `የተያዙ ቦታዎች: ${activePool.bookedShares} ከ ${activePool.totalShares}`
-                            : `Booked Shares: ${activePool.bookedShares} of ${activePool.totalShares}`}
-                        </span>
-                        <span style={{ fontWeight: 600, color: 'var(--purple)' }}>
-                          {Math.round((activePool.bookedShares / activePool.totalShares) * 100)}%
-                        </span>
+                        <span>{lang === 'am' ? `${activePool.bookedShares} ከ ${activePool.totalShares} ተይዟል` : `${activePool.bookedShares} of ${activePool.totalShares} booked`}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--purple)' }}>{Math.round((activePool.bookedShares / activePool.totalShares) * 100)}%</span>
                       </div>
-                      <div className="progress-bar" style={{ height: 10 }}>
-                        <div
-                          className="progress-fill purple"
-                          style={{ width: `${(activePool.bookedShares / activePool.totalShares) * 100}%` }}
-                        />
-                      </div>
-
-                      {activePool.members && activePool.members.length > 0 && (
+                      <ProgressBar pct={(activePool.bookedShares / activePool.totalShares) * 100} color="purple" height={10} />
+                      {activePool.members?.length > 0 && (
                         <div style={{ marginTop: 12 }}>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>
-                            {lang === 'am' ? 'የገንዳው አባላት' : 'Pool Members'}:
-                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>{lang === 'am' ? 'አባላት' : 'Members'}:</div>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {activePool.members.map((m, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  background: 'var(--bg-elevated)',
-                                  padding: '4px 8px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  fontSize: '0.72rem',
-                                  border: '1px solid var(--border-light)'
-                                }}
-                              >
-                                <div style={{
-                                  width: 16, height: 16, borderRadius: '50%',
-                                  background: 'var(--purple)', color: 'white',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  fontSize: '0.6rem', fontWeight: 700
-                                }}>
-                                  {m.avatar || m.fullName[0].toUpperCase()}
-                                </div>
+                              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-elevated)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', fontSize: '0.72rem', border: '1px solid var(--border-light)' }}>
+                                <div style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--purple)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>{m.avatar || m.fullName[0]}</div>
                                 <span style={{ fontWeight: 500 }}>{m.fullName}</span>
                                 <span style={{ color: 'var(--text-muted)' }}>({m.shares} {lang === 'am' ? 'እጣ' : 'sh'})</span>
                               </div>
@@ -792,51 +758,37 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
                       )}
                     </div>
                   ) : null}
-
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
-                    {t.kirchaDesc}
-                  </p>
-
-                  {/* Division controls */}
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>{t.kirchaDesc}</p>
                   <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 6 }}>
-                      {lang === 'am' ? 'የድርሻ ክፍፍል መምረጫ (አዲስ ገንዳ ከሆነ ብቻ)' : 'Pool Division (First buyer determines division)'}:
-                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 6 }}>{lang === 'am' ? 'ክፍፍል' : 'Pool Division'}:</div>
                     <div style={{ display: 'flex', gap: 12 }}>
                       {[3, 5, 7].map(n => {
                         const isLocked = activePool && activePool.bookedShares > 0;
-                        const isSelected = kirchaShares === n;
                         return (
-                          <button
-                            key={n}
-                            className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
-                            style={{ minWidth: 48, opacity: isLocked && !isSelected ? 0.4 : 1, cursor: isLocked ? 'not-allowed' : 'pointer' }}
-                            onClick={() => !isLocked && setKirchaShares(n)}
-                            disabled={isLocked}
-                            title={isLocked ? 'Division is locked for active pools' : ''}
-                          >
-                            ÷{n}
-                          </button>
+                          <button key={n} className={`btn btn-sm ${kirchaShares === n ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ minWidth: 48, opacity: isLocked && kirchaShares !== n ? 0.4 : 1 }}
+                            onClick={() => !isLocked && setKirchaShares(n)} disabled={isLocked}>÷{n}</button>
                         );
                       })}
                     </div>
                     <div style={{ marginTop: 10, fontSize: '0.88rem', fontWeight: 700, color: 'var(--gold)' }}>
-                      {t.yourShare}: {formatETB(Math.round(selectedAnimal.price / kirchaShares))} ({lang === 'am' ? `ከ ${kirchaShares} ቤተሰብ 1` : `1 of ${kirchaShares} families`})
+                      {t.yourShare}: {formatETB(Math.round(selectedAnimal.price / kirchaShares))}
                     </div>
                   </div>
                 </div>
               )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
                 {[
                   { label: t.breed, value: selectedAnimal.breed },
                   { label: lang === 'am' ? 'ክብደት' : 'Weight', value: `${selectedAnimal.weight} ${lang === 'am' ? 'ኪ.ግ' : 'kg'}` },
                   { label: t.age, value: selectedAnimal.age || 'N/A' },
                   { label: lang === 'am' ? 'ቦታ' : 'Location', value: selectedAnimal.locationArea },
-                  { label: lang === 'am' ? 'የሚገኝበት ቀን' : 'Available', value: formatDate(selectedAnimal.availableDate) },
-                  { label: lang === 'am' ? 'የጤና ማረጋገጫ' : 'Health Cert.', value: selectedAnimal.healthCertificate ? (lang === 'am' ? '✓ አዎ' : '✓ Yes') : (lang === 'am' ? '✗ የለም' : '✗ No'), color: selectedAnimal.healthCertificate ? 'var(--green-bright)' : 'var(--text-muted)' },
+                  { label: lang === 'am' ? 'ቀን' : 'Available', value: formatDate(selectedAnimal.availableDate) },
+                  { label: lang === 'am' ? 'የጤና ማረጋገጫ' : 'Health Cert.', value: selectedAnimal.healthCertificate ? '✓' : '✗', color: selectedAnimal.healthCertificate ? 'var(--green-bright)' : 'var(--text-muted)' },
                   { label: lang === 'am' ? 'ጾታ' : 'Gender', value: selectedAnimal.gender || (lang === 'am' ? 'ወንድ' : 'Male') },
-                  { label: lang === 'am' ? 'የጤና ሁኔታ' : 'Health Status', value: selectedAnimal.healthStatus || (lang === 'am' ? 'በጣም ጥሩ' : 'Excellent'), color: '#22c55e' },
-                  { label: lang === 'am' ? 'ክትባት' : 'Vaccination', value: selectedAnimal.vaccinationStatus ? (lang === 'am' ? 'የተከተበ' : 'Vaccinated') : (lang === 'am' ? 'ያልተከተበ' : 'Not Vaccinated'), color: selectedAnimal.vaccinationStatus ? '#22c55e' : 'var(--text-muted)' },
+                  { label: lang === 'am' ? 'ጤና' : 'Health', value: selectedAnimal.healthStatus || (lang === 'am' ? 'በጣም ጥሩ' : 'Excellent'), color: '#22c55e' },
+                  { label: lang === 'am' ? 'ክትባት' : 'Vaccination', value: selectedAnimal.vaccinationStatus ? '✓' : '✗', color: selectedAnimal.vaccinationStatus ? '#22c55e' : 'var(--text-muted)' },
                 ].map((item, i) => (
                   <div key={i} style={{ background: 'var(--bg-elevated)', padding: 12, borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: 3 }}>{item.label}</div>
@@ -868,271 +820,394 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
         </div>
       )}
 
-      {/* Order Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          ORDER WIZARD MODAL — 4-Step Flow
+      ═══════════════════════════════════════════════════════════════ */}
       {showOrder && selectedAnimal && (
-        <div className="modal-overlay" onClick={() => !orderSuccess && setShowOrder(false)}>
-          <div className="modal scale-in" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => !orderSuccess && setShowOrder(false)} role="dialog" aria-label="Place Order" aria-modal="true">
+          <div className="modal cd-modal scale-in" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             {orderSuccess ? (
-              <div style={{ padding: '60px 40px', textAlign: 'center' }}>
-                <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
-                <h3 style={{ fontSize: '1.3rem', marginBottom: 8 }}>{t.orderPlaced}</h3>
-                <p style={{ color: 'var(--text-secondary)' }}>
-                  {deliveryOption === 'delivery' ? `${t.deliveringTo} ${deliveryZone} · ${deliveryTimeWindow}` : `${t.readyForPickup} ${selectedAnimal.locationArea}`}
+              <div style={{ padding: '50px 32px', textAlign: 'center' }}>
+                <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🎉</div>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: 8, fontWeight: 700 }}>
+                  {lang === 'am' ? 'ትዕዛዝ ተመዝግቧል!' : 'Order Placed!'}
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                  {purchaseType === 'installment'
+                    ? (lang === 'am' ? 'የእኩብ ክፍያ ዕቅድዎ ተጀምሯል' : `Installment plan started — ${formatETB(getInstallmentPrice(getBasePrice(), installmentMonths)?.monthlyPayment || 0)}/mo`)
+                    : (deliveryOption === 'delivery'
+                        ? `${lang === 'am' ? 'ወደ' : 'Delivering to'} ${deliveryZone}`
+                        : `${lang === 'am' ? 'ለመውሰድ ዝግጁ' : 'Ready for pickup'}`)}
                 </p>
               </div>
             ) : (
               <>
                 <div className="modal-header">
-                  <h3>🛒 {t.placeOrder}</h3>
-                  <button className="btn btn-ghost btn-icon" onClick={() => setShowOrder(false)}><X size={18} /></button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {orderStep > 0 && (
+                      <button className="btn btn-ghost btn-icon" onClick={goBack} aria-label="Back" style={{ marginRight: 4 }}>←</button>
+                    )}
+                    <h3>🛒 {lang === 'am' ? 'ትዕዛዝ' : 'Place Order'}</h3>
+                  </div>
+                  <button className="btn btn-ghost btn-icon" onClick={() => setShowOrder(false)} aria-label="Close">✕</button>
                 </div>
+
                 <div className="modal-body">
+                  <StepDots step={orderStep} total={4} />
+
+                  {/* Animal summary (always visible) */}
                   <div style={{ display: 'flex', gap: 14, background: 'var(--bg-elevated)', padding: 14, borderRadius: 'var(--radius-md)', marginBottom: 18 }}>
                     <div style={{ width: 56, height: 56, borderRadius: 'var(--radius-md)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', flexShrink: 0 }}>{ANIMAL_EMOJIS[selectedAnimal.type]}</div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700 }}>{selectedAnimal.breed} {translateAnimal(selectedAnimal.type)}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{selectedAnimal.weight}{lang === 'am' ? 'ኪ.ግ' : 'kg'} · {selectedAnimal.locationArea} · ⭐ {selectedAnimal.sellerRating}</div>
-                      {selectedAnimal.type === 'kircha' && (
-                        <div style={{ marginTop: 6 }}>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                            {activePool && activePool.bookedShares > 0
-                              ? (lang === 'am' ? 'ገንዳው የተዘጋጀው ለ:' : 'Pool locked to division:')
-                              : t.splitBetweenFamilies}
+                      <div style={{ fontWeight: 700, color: 'var(--gold)', marginTop: 4 }}>{formatETB(getBasePrice())}</div>
+                    </div>
+                  </div>
+
+                  {/* ── Step 0: Purchase Type ── */}
+                  {orderStep === 0 && (
+                    <div className="animate-in">
+                      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {lang === 'am' ? 'እንዴት መክፈል ይፈልጋሉ?' : 'How would you like to pay?'}
+                        </div>
+                      </div>
+
+                      {/* Cash vs Installment cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: selectedAnimal.price >= INSTALLMENT_MIN_PRICE && selectedAnimal.type !== 'kircha' ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 16 }}>
+                        <div
+                          className={`mp-purchase-card ${purchaseType === 'cash' ? 'selected' : ''}`}
+                          onClick={() => { vibrate(); setPurchaseType('cash'); }}
+                          role="button" tabIndex={0}
+                        >
+                          <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>💵</div>
+                          <div style={{ fontWeight: 700, marginBottom: 4 }}>{lang === 'am' ? 'ጥሬ ገንዘብ' : 'Pay Now'}</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold)' }}>{formatETB(getBasePrice())}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                            {lang === 'am' ? 'ሙሉ ክፍያ አሁን' : 'Full payment today'}
                           </div>
-                          <div style={{ display: 'flex', gap: 4 }}>
+                        </div>
+
+                        {selectedAnimal.price >= INSTALLMENT_MIN_PRICE && selectedAnimal.type !== 'kircha' && (() => {
+                          const inst = getInstallmentPrice(getBasePrice(), installmentMonths);
+                          return (
+                            <div
+                              className={`mp-purchase-card ${purchaseType === 'installment' ? 'selected' : ''}`}
+                              onClick={() => { vibrate(); setPurchaseType('installment'); }}
+                              role="button" tabIndex={0}
+                            >
+                              <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>📅</div>
+                              <div style={{ fontWeight: 700, marginBottom: 4 }}>{lang === 'am' ? 'እኩብ ክፍያ' : 'Installment'}</div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold)' }}>
+                                {formatETB(inst?.monthlyPayment || 0)}<span style={{ fontSize: '0.7rem', fontWeight: 500 }}>/{lang === 'am' ? 'ወር' : 'mo'}</span>
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                × {installmentMonths} {lang === 'am' ? 'ወራት' : 'months'}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Installment plan selector */}
+                      {purchaseType === 'installment' && (
+                        <div className="animate-in" style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                            {lang === 'am' ? 'የክፍያ ዕቅድ ይምረጡ' : 'Choose your plan'}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                            {INSTALLMENT_PLANS.map(plan => (
+                              <button
+                                key={plan.months}
+                                className={`cd-chip ${installmentMonths === plan.months ? 'selected' : ''}`}
+                                onClick={() => { vibrate(); setInstallmentMonths(plan.months); }}
+                                style={{ flex: 1 }}
+                              >
+                                {lang === 'am' ? plan.labelAm : plan.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {(() => {
+                            const inst = getInstallmentPrice(getBasePrice(), installmentMonths);
+                            if (!inst) return null;
+                            return (
+                              <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: 14, border: '1px solid var(--border-light)' }}>
+                                <div className="cd-confirm-row">
+                                  <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ወርሃዊ ክፍያ' : 'Monthly Payment'}</span>
+                                  <span style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '1.05rem' }}>{formatETB(inst.monthlyPayment)}</span>
+                                </div>
+                                <div className="cd-confirm-row">
+                                  <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ጠቅላላ' : 'Total Price'}</span>
+                                  <span style={{ fontWeight: 600 }}>{formatETB(inst.totalPrice)}</span>
+                                </div>
+                                <div className="cd-confirm-row">
+                                  <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ተጨማሪ ክፍያ' : 'Markup'}</span>
+                                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>+{formatETB(inst.markup)} ({(inst.markupPct * 100)}%)</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Kircha share selector */}
+                      {selectedAnimal.type === 'kircha' && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 6 }}>
+                            {activePool && activePool.bookedShares > 0 ? (lang === 'am' ? 'ገንዳው ተቆልፏል:' : 'Pool locked:') : t.splitBetweenFamilies}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                             {[3, 5, 7].map(n => {
                               const isLocked = activePool && activePool.bookedShares > 0;
-                              const isSelected = kirchaShares === n;
                               return (
-                                <button
-                                  key={n}
-                                  className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
-                                  style={{ padding: '3px 8px', fontSize: '0.72rem', opacity: isLocked && !isSelected ? 0.4 : 1, cursor: isLocked ? 'not-allowed' : 'pointer' }}
-                                  disabled={isLocked}
-                                  onClick={() => !isLocked && setKirchaShares(n)}
-                                >
-                                  ÷{n}
-                                </button>
+                                <button key={n} className={`cd-chip ${kirchaShares === n ? 'selected' : ''}`}
+                                  style={{ flex: 1, opacity: isLocked && kirchaShares !== n ? 0.4 : 1 }}
+                                  onClick={() => !isLocked && setKirchaShares(n)} disabled={isLocked}>÷{n} {lang === 'am' ? 'ቤተሰቦች' : 'families'}</button>
                               );
                             })}
                           </div>
-                          <div style={{ marginTop: 6, fontSize: '0.82rem', fontWeight: 700, color: 'var(--purple)' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--purple)' }}>
                             {lang === 'am' ? 'የእርስዎ ድርሻ' : 'Your share'}: {formatETB(Math.round(selectedAnimal.price / kirchaShares))}
-                            {activePool && activePool.bookedShares > 0 && (
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: 8, fontWeight: 500 }}>
-                                ({lang === 'am' ? `${activePool.bookedShares}/${activePool.totalShares} ቦታ ተይዟል` : `${activePool.bookedShares}/${activePool.totalShares} slots filled`})
-                              </span>
-                            )}
                           </div>
                         </div>
                       )}
-                      {selectedAnimal.type !== 'kircha' && <div style={{ fontWeight: 700, color: 'var(--gold)', marginTop: 4 }}>{formatETB(selectedAnimal.price)}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">{t.deliveryOption}</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className={`btn btn-sm ${deliveryOption === 'delivery' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDeliveryOption('delivery')} style={{ flex: 1, justifyContent: 'center' }}>
-                        🚚 {t.delivery}
-                      </button>
-                      <button className={`btn btn-sm ${deliveryOption === 'pickup' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDeliveryOption('pickup')} style={{ flex: 1, justifyContent: 'center' }}>
-                        🏪 {t.pickup}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Self-Pickup Location Info */}
-                  {deliveryOption === 'pickup' && selectedAnimal && (
-                    <div style={{
-                      background: 'linear-gradient(135deg, hsla(210,100%,50%,0.08), hsla(150,80%,45%,0.06))',
-                      border: '1px solid hsla(210,100%,50%,0.18)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 16,
-                      marginBottom: 8,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <MapPin size={18} color="#3b82f6" />
-                        <strong style={{ fontSize: '0.88rem' }}>
-                          {lang === 'am' ? 'የመውሰጃ ቦታ ዝርዝር' : 'Pickup Location Details'}
-                        </strong>
-                      </div>
-                      <div style={{
-                        background: 'var(--bg-elevated)',
-                        borderRadius: 'var(--radius-sm)',
-                        padding: 12,
-                        fontSize: '0.82rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.7
-                      }}>
-                        <div style={{ marginBottom: 6 }}>
-                          <strong style={{ color: 'var(--text-primary)' }}>
-                            {lang === 'am' ? '📍 ተቋም: ' : '📍 Facility: '}
-                          </strong>
-                          {selectedAnimal.locationArea}{lang === 'am' ? ' የእንስሳት ገበያ ማዕከል' : ' Livestock Market Center'}
-                        </div>
-                        <div style={{ marginBottom: 6 }}>
-                          <strong style={{ color: 'var(--text-primary)' }}>
-                            {lang === 'am' ? '🏢 ማከማቻ: ' : '🏢 Holding Yard: '}
-                          </strong>
-                          {lang === 'am'
-                            ? `ሞጆ/ቢሾፍቱ ማቆያ - ${selectedAnimal.locationArea} ዞን`
-                            : `Modjo/Bishoftu Holding Facility — ${selectedAnimal.locationArea} Zone`}
-                        </div>
-                        <div style={{ marginBottom: 6 }}>
-                          <strong style={{ color: 'var(--text-primary)' }}>
-                            {lang === 'am' ? '🕐 ሰዓት: ' : '🕐 Hours: '}
-                          </strong>
-                          {lang === 'am' ? 'ከጠዋቱ 2:00 - ከምሽቱ 12:00 (ሰኞ - ቅዳሜ)' : '8:00 AM — 6:00 PM (Mon–Sat)'}
-                        </div>
-                        <div>
-                          <strong style={{ color: 'var(--text-primary)' }}>
-                            {lang === 'am' ? '📞 ስልክ: ' : '📞 Contact: '}
-                          </strong>
-                          +251-11-XXX-XXXX
-                        </div>
-                      </div>
-                      <div style={{
-                        marginTop: 10,
-                        fontSize: '0.72rem',
-                        color: 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}>
-                        <CheckCircle size={12} color="#22c55e" />
-                        {lang === 'am'
-                          ? 'ትዕዛዝዎ ከተረጋገጠ በኋላ የመውሰጃ ማረጋገጫ ኮድ በSMS ይላካል።'
-                          : 'A pickup confirmation code will be sent via SMS after order confirmation.'}
-                      </div>
                     </div>
                   )}
 
-                  {deliveryOption === 'delivery' && (
-                    <>
-                      <div className="form-group">
-                        <label className="form-label">{lang === 'am' ? 'የማድረሻ አድራሻ' : 'Delivery Address'}</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder={lang === 'am' ? 'ለምሳሌ፡ ቦሌ ክፍለ ከተማ፣ ወረዳ 03' : 'e.g. Bole Sub-City, Woreda 03'}
-                          value={deliveryAddress}
-                          onChange={e => setDeliveryAddress(e.target.value)}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{lang === 'am' ? 'የማድረሻ ቀን' : 'Delivery Date'}</label>
-                        <input
-                          type="date"
-                          className="form-input"
-                          min={
-                            selectedAnimal?.availableDate && selectedAnimal.availableDate.slice(0, 10) > new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-                              ? selectedAnimal.availableDate.slice(0, 10)
-                              : new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-                          }
-                          max={new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)}
-                          value={deliveryDate}
-                          onChange={e => setDeliveryDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{t.deliveryZone}</label>
-                        <select className="form-input form-select" value={deliveryZone} onChange={e => setDeliveryZone(e.target.value)} id="delivery-zone">
-                          {Object.keys(DELIVERY_ZONES).map(zone => <option key={zone} value={zone}>{zone}</option>)}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{t.deliveryTimeWindow}</label>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                          {DELIVERY_TIME_WINDOWS.map(tw => (
-                            <button key={tw} className={`btn btn-sm ${deliveryTimeWindow === tw ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDeliveryTimeWindow(tw)} style={{ justifyContent: 'center', fontSize: '0.75rem' }}>
-                              <Clock size={12} /> {lang === 'am' && tw.includes('Morning') ? 'ጠዋት (ከ2-6 ሰዓት)' : lang === 'am' && tw.includes('Afternoon') ? 'ከሰዓት (ከ6-10 ሰዓት)' : lang === 'am' && tw.includes('Evening') ? 'ማታ (ከ10-1 ሰዓት)' : lang === 'am' && tw.includes('Full Day') ? 'ሙሉ ቀን (ከ2-1 ሰዓት)' : tw}
-                            </button>
-                          ))}
+                  {/* ── Step 1: Delivery ── */}
+                  {orderStep === 1 && (
+                    <div className="animate-in">
+                      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {lang === 'am' ? 'የማድረሻ ዘዴ ይምረጡ' : 'Choose delivery method'}
                         </div>
                       </div>
+
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                        <button className={`cd-chip ${deliveryOption === 'delivery' ? 'selected' : ''}`} onClick={() => { vibrate(); setDeliveryOption('delivery'); }} style={{ flex: 1, minHeight: 48, gap: 6 }}>
+                          🚚 {lang === 'am' ? 'ማድረስ' : 'Delivery'}
+                        </button>
+                        <button className={`cd-chip ${deliveryOption === 'pickup' ? 'selected' : ''}`} onClick={() => { vibrate(); setDeliveryOption('pickup'); }} style={{ flex: 1, minHeight: 48, gap: 6 }}>
+                          🏪 {lang === 'am' ? 'ራስ ማንሳት' : 'Pickup'}
+                        </button>
+                      </div>
+
+                      {deliveryOption === 'pickup' && (
+                        <div style={{ background: 'linear-gradient(135deg, hsla(210,100%,50%,0.08), hsla(150,80%,45%,0.06))', border: '1px solid hsla(210,100%,50%,0.18)', borderRadius: 'var(--radius-md)', padding: 16 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <MapPin size={18} color="#3b82f6" />
+                            <strong style={{ fontSize: '0.88rem' }}>{lang === 'am' ? 'የመውሰጃ ቦታ' : 'Pickup Location'}</strong>
+                          </div>
+                          <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', padding: 12, fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                            <div style={{ marginBottom: 6 }}><strong style={{ color: 'var(--text-primary)' }}>📍 </strong>{selectedAnimal.locationArea} {lang === 'am' ? 'ማዕከል' : 'Market Center'}</div>
+                            <div style={{ marginBottom: 6 }}><strong style={{ color: 'var(--text-primary)' }}>🕐 </strong>{lang === 'am' ? 'ከ2-12 ሰዓት (ሰኞ-ቅዳሜ)' : '8AM–6PM (Mon–Sat)'}</div>
+                            <div><strong style={{ color: 'var(--text-primary)' }}>📞 </strong>+251-11-XXX-XXXX</div>
+                          </div>
+                          <div style={{ marginTop: 10, fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <CheckCircle size={12} color="#22c55e" />
+                            {lang === 'am' ? 'ማረጋገጫ ኮድ በSMS ይላካል' : 'Pickup code sent via SMS after confirmation'}
+                          </div>
+                        </div>
+                      )}
+
+                      {deliveryOption === 'delivery' && (
+                        <>
+                          <div className="form-group">
+                            <label className="form-label">{lang === 'am' ? 'የማድረሻ አድራሻ' : 'Delivery Address'}</label>
+                            <input type="text" className="form-input" placeholder={lang === 'am' ? 'ለምሳሌ: ቦሌ ክፍለ ከተማ, ወረዳ 03' : 'e.g. Bole Sub-City, Woreda 03'} value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">{lang === 'am' ? 'የማድረሻ ቀን' : 'Delivery Date'}</label>
+                            <input type="date" className="form-input"
+                              min={selectedAnimal?.availableDate?.slice(0, 10) > new Date(Date.now() + 86400000).toISOString().slice(0, 10) ? selectedAnimal.availableDate.slice(0, 10) : new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                              max={new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)}
+                              value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">{t.deliveryZone}</label>
+                            <select className="form-input form-select" value={deliveryZone} onChange={e => setDeliveryZone(e.target.value)} id="delivery-zone">
+                              {Object.keys(DELIVERY_ZONES).map(zone => <option key={zone} value={zone}>{zone}</option>)}
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">{t.deliveryTimeWindow}</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              {DELIVERY_TIME_WINDOWS.map(tw => (
+                                <button key={tw} className={`cd-chip ${deliveryTimeWindow === tw ? 'selected' : ''}`}
+                                  onClick={() => { vibrate(); setDeliveryTimeWindow(tw); }}
+                                  style={{ justifyContent: 'center', fontSize: '0.75rem', minHeight: 44 }}>
+                                  <Clock size={12} /> {lang === 'am' && tw.includes('Morning') ? 'ጠዋት' : lang === 'am' && tw.includes('Afternoon') ? 'ከሰዓት' : lang === 'am' && tw.includes('Evening') ? 'ማታ' : lang === 'am' && tw.includes('Full') ? 'ሙሉ ቀን' : tw}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Step 2: Payment & Insurance ── */}
+                  {orderStep === 2 && (
+                    <div className="animate-in">
+                      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {lang === 'am' ? 'የክፍያ ዘዴ ይምረጡ' : 'Choose payment method'}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                        {METHODS.map(m => (
+                          <button key={m.key} className={`cd-method-card ${paymentMethod === m.key ? 'selected' : ''}`}
+                            onClick={() => { vibrate(); setPaymentMethod(m.key); }} id={`pay-${m.key}`}
+                            style={{ '--method-color': m.color }}>
+                            <span style={{ color: m.color, marginBottom: 6 }}>{m.icon}</span>
+                            <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{m.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {paymentMethod === 'wallet' && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{lang === 'am' ? 'ቀሪ ሂሳብ:' : 'Balance:'} <strong style={{ color: 'var(--green-bright)' }}>{formatETB(getPrimaryBalance())}</strong></span>
+                          <span>{lang === 'am' ? 'ከክፍያ በኋላ:' : 'After:'} <strong style={{ color: getPrimaryBalance() - getOrderTotal() >= 100 ? 'var(--green-bright)' : 'var(--red)' }}>{formatETB(getPrimaryBalance() - getOrderTotal())}</strong></span>
+                        </div>
+                      )}
+
+                      {/* Vet insurance */}
+                      {selectedAnimal.insurancePremium !== undefined && (
+                        <div style={{ background: 'var(--bg-elevated)', padding: 14, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border-light)' }}>
+                          <input type="checkbox" id="vet-insurance-check" checked={vetInsurance} onChange={e => setVetInsurance(e.target.checked)} style={{ width: 20, height: 20, cursor: 'pointer', flexShrink: 0 }} />
+                          <label htmlFor="vet-insurance-check" style={{ fontSize: '0.8rem', cursor: 'pointer', flex: 1 }}>
+                            <strong>🛡️ {lang === 'am' ? 'የእንስሳት ሐኪም መድን (+5%)' : 'Vet Insurance (+5%)'}</strong>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                              {lang === 'am' ? 'በማጓጓዣ እና ከደረሰ በኋላ ለ48 ሰዓታት ሽፋን' : 'Covers transport & 48hr post-delivery'}
+                            </div>
+                          </label>
+                        </div>
+                      )}
+
+                      {/* Installment reminder */}
+                      {purchaseType === 'installment' && (
+                        <div style={{ background: 'var(--gold-soft)', border: '1px solid hsla(45,100%,51%,0.2)', borderRadius: 'var(--radius-md)', padding: 12, marginTop: 12, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          📅 {lang === 'am'
+                            ? `${installmentMonths} ወራት የእኩብ ክፍያ — የመጀመሪያ ክፍያ ዛሬ`
+                            : `${installmentMonths}-month installment — first payment today`}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Step 3: Review & Confirm ── */}
+                  {orderStep === 3 && (
+                    <div className="animate-in">
+                      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {lang === 'am' ? 'ዝርዝሮችን ያረጋግጡ' : 'Review your order'}
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', padding: 20, marginBottom: 16 }}>
+                        <div className="cd-confirm-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'የግዢ ዓይነት' : 'Purchase Type'}</span>
+                          <span style={{ fontWeight: 600 }}>
+                            {purchaseType === 'installment'
+                              ? `📅 ${lang === 'am' ? 'እኩብ' : 'Installment'} (${installmentMonths} ${lang === 'am' ? 'ወር' : 'mo'})`
+                              : `💵 ${lang === 'am' ? 'ጥሬ ገንዘብ' : 'Cash'}`}
+                          </span>
+                        </div>
+                        <div className="cd-confirm-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>{t.animalPrice}{selectedAnimal.type === 'kircha' ? ` (÷${kirchaShares})` : ''}</span>
+                          <span style={{ fontWeight: 600 }}>{formatETB(getBasePrice())}</span>
+                        </div>
+                        {purchaseType === 'installment' && (() => {
+                          const inst = getInstallmentPrice(getBasePrice(), installmentMonths);
+                          return inst ? (
+                            <>
+                              <div className="cd-confirm-row">
+                                <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ተጨማሪ' : 'Markup'} ({(inst.markupPct * 100)}%)</span>
+                                <span style={{ fontWeight: 600 }}>+{formatETB(inst.markup)}</span>
+                              </div>
+                              <div className="cd-confirm-row">
+                                <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ወርሃዊ' : 'Monthly'}</span>
+                                <span style={{ fontWeight: 700, color: 'var(--gold)' }}>{formatETB(inst.monthlyPayment)}/{lang === 'am' ? 'ወር' : 'mo'}</span>
+                              </div>
+                            </>
+                          ) : null;
+                        })()}
+                        {deliveryOption === 'delivery' && breakdown && (
+                          <>
+                            <div className="cd-confirm-row">
+                              <span style={{ color: 'var(--text-secondary)' }}>{t.transport} ({breakdown.distance} km)</span>
+                              <span style={{ fontWeight: 600 }}>{formatETB(breakdown.transport)}</span>
+                            </div>
+                            <div className="cd-confirm-row">
+                              <span style={{ color: 'var(--text-secondary)' }}>{t.labor}</span>
+                              <span style={{ fontWeight: 600 }}>{formatETB(breakdown.labor)}</span>
+                            </div>
+                            <div className="cd-confirm-row">
+                              <span style={{ color: 'var(--text-secondary)' }}>{t.insurance}</span>
+                              <span style={{ fontWeight: 600 }}>{formatETB(breakdown.insurance)}</span>
+                            </div>
+                          </>
+                        )}
+                        {vetInsurance && (
+                          <div className="cd-confirm-row">
+                            <span style={{ color: 'var(--text-secondary)' }}>🛡️ {lang === 'am' ? 'መድን' : 'Vet Insurance'} (5%)</span>
+                            <span style={{ fontWeight: 600, color: '#3b82f6' }}>+{formatETB(Math.round(getBasePrice() * 0.05))}</span>
+                          </div>
+                        )}
+                        <div className="cd-confirm-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ዘዴ' : 'Payment'}</span>
+                          <span style={{ fontWeight: 600 }}>{METHODS.find(m => m.key === paymentMethod)?.label || paymentMethod}</span>
+                        </div>
+                        <div className="cd-confirm-row">
+                          <span style={{ color: 'var(--text-secondary)' }}>{lang === 'am' ? 'ማድረሻ' : 'Delivery'}</span>
+                          <span style={{ fontWeight: 600 }}>
+                            {deliveryOption === 'delivery' ? `🚚 ${deliveryZone}` : `🏪 ${lang === 'am' ? 'ራስ ማንሳት' : 'Pickup'}`}
+                          </span>
+                        </div>
+                        <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 12, paddingTop: 12 }}>
+                          <div className="cd-confirm-row">
+                            <span style={{ fontWeight: 700 }}>{t.total}</span>
+                            <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--gold)' }}>{formatETB(getOrderTotal())}</span>
+                          </div>
+                        </div>
+                        {paymentMethod === 'wallet' && getPrimaryBalance() - getOrderTotal() < 100 && (
+                          <div style={{ color: 'var(--red)', fontSize: '0.72rem', marginTop: 6, fontWeight: 600, textAlign: 'center' }}>
+                            ⚠️ {lang === 'am' ? 'ቢያንስ 100 ብር መያዣ መቅረት አለበት!' : '100 ETB minimum reserve must remain!'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  {orderStep < 3 ? (
+                    <>
+                      <button className="btn btn-secondary" onClick={() => { vibrate(); orderStep > 0 ? goBack() : setShowOrder(false); }} disabled={actionLoading}>
+                        {orderStep === 0 ? t.cancel : (lang === 'am' ? 'ተመለስ' : 'Back')}
+                      </button>
+                      <button className="btn btn-success" onClick={goToNextStep} disabled={actionLoading} id="order-next">
+                        {lang === 'am' ? 'ቀጣይ →' : 'Next →'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn btn-secondary" onClick={goBack} disabled={actionLoading}>
+                        {lang === 'am' ? 'ተመለስ' : 'Back'}
+                      </button>
+                      <button className="btn btn-success" onClick={confirmOrder} disabled={actionLoading} id="confirm-order">
+                        {actionLoading ? (
+                          <><span className="btn-spinner" /> {lang === 'am' ? 'በማስኬድ ላይ...' : 'Processing...'}</>
+                        ) : (
+                          <><CheckCircle size={16} /> {t.confirmPurchase}</>
+                        )}
+                      </button>
                     </>
                   )}
- 
-                  {/* Vet Insurance Option */}
-                  {selectedAnimal.insurancePremium !== undefined && (
-                    <div className="form-group" style={{ background: 'var(--bg-elevated)', padding: 12, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border-light)' }}>
-                      <input
-                        type="checkbox"
-                        id="vet-insurance-check"
-                        checked={vetInsurance}
-                        onChange={e => setVetInsurance(e.target.checked)}
-                        style={{ width: 18, height: 18, cursor: 'pointer' }}
-                      />
-                      <label htmlFor="vet-insurance-check" style={{ fontSize: '0.8rem', cursor: 'pointer', flex: 1 }}>
-                        <strong>{lang === 'am' ? 'የእንስሳት ሐኪም መድን ጨምር (+5%)' : 'Add Veterinary Insurance (+5%)'}</strong>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                          {lang === 'am'
-                            ? 'በማጓጓዣ ወቅት እና ከደረሰ በኋላ ለ48 ሰዓታት ለሚከሰት ህመም ወይም ጉዳት ሙሉ ሽፋን ይሰጣል።'
-                            : 'Covers illness or accidental death during transport and 48 hours post-delivery.'}
-                        </div>
-                      </label>
-                    </div>
-                  )}
- 
-                  <div className="form-group">
-                    <label className="form-label">{t.paymentMethod}</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {PAYMENT_METHODS_ORDER.map(pm => (
-                        <button key={pm.key} className={`btn btn-sm ${paymentMethod === pm.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPaymentMethod(pm.key)} style={{ flex: 1, justifyContent: 'center', flexDirection: 'column', padding: '10px 8px', height: 'auto' }}>
-                          <span style={{ fontSize: '1.2rem' }}>{pm.icon}</span>
-                          <span style={{ fontSize: '0.68rem', marginTop: 2 }}>{translateMethod(pm.label)}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {paymentMethod === 'wallet' && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{lang === 'am' ? 'ቀሪ ሂሳብ:' : 'Wallet Balance:'} <strong style={{ color: 'var(--green-bright)' }}>{formatETB(getPrimaryBalance())}</strong></span>
-                        <span>{lang === 'am' ? 'ከክፍያ በኋላ ቀሪ:' : 'After checkout:'} <strong style={{ color: getPrimaryBalance() - getOrderTotal() >= 100 ? 'var(--green-bright)' : 'var(--red)' }}>{formatETB(getPrimaryBalance() - getOrderTotal())}</strong></span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="cost-breakdown">
-                    <div style={{ fontWeight: 600, marginBottom: 8, fontSize: '0.85rem' }}>💰 {t.priceBreakdown}</div>
-                    <div className="cost-row">
-                      <span>{t.animalPrice}{selectedAnimal.type === 'kircha' ? ` (÷${kirchaShares})` : ''}</span>
-                      <span style={{ fontWeight: 600 }}>{formatETB(selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price)}</span>
-                    </div>
-                    {deliveryOption === 'delivery' && breakdown && (
-                      <>
-                        <div className="cost-row"><span>{t.transport} ({breakdown.distance} km)</span><span style={{ fontWeight: 600 }}>{formatETB(breakdown.transport)}</span></div>
-                        <div className="cost-row"><span>{t.labor}</span><span style={{ fontWeight: 600 }}>{formatETB(breakdown.labor)}</span></div>
-                        <div className="cost-row"><span>{t.insurance}</span><span style={{ fontWeight: 600 }}>{formatETB(breakdown.insurance)}</span></div>
-                      </>
-                    )}
-                    {vetInsurance && (
-                      <div className="cost-row">
-                        <span>{lang === 'am' ? 'የእንስሳ ሐኪም መድን (5%)' : 'Vet Insurance (5%)'}</span>
-                        <span style={{ fontWeight: 600, color: '#3b82f6' }}>+{formatETB(Math.round((selectedAnimal.type === 'kircha' ? Math.round(selectedAnimal.price / kirchaShares) : selectedAnimal.price) * 0.05))}</span>
-                      </div>
-                    )}
-                    <div className="cost-row total"><span>{t.total}</span><span>{formatETB(getOrderTotal())}</span></div>
-                    {paymentMethod === 'wallet' && getPrimaryBalance() - getOrderTotal() < 100 && (
-                      <div style={{ color: 'var(--red)', fontSize: '0.72rem', marginTop: 6, fontWeight: 600, textAlign: 'center' }}>
-                        ⚠️ {lang === 'am' ? 'ከክፍያ በኋላ ቢያንስ 100 ብር መያዣ መቅረት አለበት!' : '100 ETB minimum reserve must remain in wallet after purchase!'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setShowOrder(false)} disabled={actionLoading}>{t.cancel}</button>
-                  <button className="btn btn-success" onClick={confirmOrder} id="confirm-order" disabled={actionLoading}>
-                    {actionLoading ? (
-                      <>
-                        <span className="btn-spinner" /> {lang === 'am' ? 'በማስኬድ ላይ...' : 'Processing...'}
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle size={16} /> {t.confirmPurchase}
-                      </>
-                    )}
-                  </button>
                 </div>
               </>
             )}
@@ -1140,7 +1215,9 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
         </div>
       )}
 
-      {/* Cancel Order Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          CANCEL ORDER MODAL
+      ═══════════════════════════════════════════════════════════════ */}
       {cancelOrderId && (
         <div className="modal-overlay" onClick={() => setCancelOrderId(null)}>
           <div className="modal scale-in" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
@@ -1150,40 +1227,26 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
             </div>
             <div className="modal-body">
               <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-                {lang === 'am'
-                  ? 'እርግጠኛ ነዎት ይህንን ትዕዛዝ መሰረዝ ይፈልጋሉ? ክፍያው ተመላሽ ተደርጎ በኪስ ቦርሳዎ ውስጥ እስኪገባ በአስተዳዳሪው ማረጋገጫ ያስፈልገዋል።'
-                  : 'Are you sure you want to cancel this order? The refunded amount will be pending admin approval.'}
+                {lang === 'am' ? 'እርግጠኛ ነዎት? ተመላሽ ክፍያው በአስተዳዳሪ ማረጋገጫ ይጠብቃል።' : 'Are you sure? Refund pending admin approval.'}
               </p>
               <div className="form-group">
-                <label className="form-label">{lang === 'am' ? 'የመሰረዣ ምክንያት' : 'Reason for Cancellation'}</label>
-                <textarea
-                  className="form-input"
-                  rows={3}
-                  placeholder={lang === 'am' ? 'ምክንያትዎን እዚህ ያስገቡ...' : 'Enter reason here...'}
-                  value={cancelReasonText}
-                  onChange={e => setCancelReasonText(e.target.value)}
-                  style={{ resize: 'none', padding: 12 }}
-                  disabled={actionLoading}
-                />
+                <label className="form-label">{lang === 'am' ? 'ምክንያት' : 'Reason'}</label>
+                <textarea className="form-input" rows={3} placeholder={lang === 'am' ? 'ምክንያትዎን ያስገቡ...' : 'Enter reason...'} value={cancelReasonText} onChange={e => setCancelReasonText(e.target.value)} style={{ resize: 'none', padding: 12 }} disabled={actionLoading} />
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setCancelOrderId(null)} disabled={actionLoading}>{t.cancel}</button>
               <button className="btn btn-danger" onClick={handleConfirmCancel} disabled={actionLoading || !cancelReasonText.trim()}>
-                {actionLoading ? (
-                  <>
-                    <span className="btn-spinner" /> {lang === 'am' ? 'በመሰረዝ ላይ...' : 'Cancelling...'}
-                  </>
-                ) : (
-                  lang === 'am' ? 'ትዕዛዝ ሰርዝ' : 'Confirm Cancel'
-                )}
+                {actionLoading ? <><span className="btn-spinner" /> {lang === 'am' ? 'በመሰረዝ...' : 'Cancelling...'}</> : (lang === 'am' ? 'ሰርዝ' : 'Confirm Cancel')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Rate Seller Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          RATE SELLER MODAL
+      ═══════════════════════════════════════════════════════════════ */}
       {rateOrderId && (
         <div className="modal-overlay" onClick={() => setRateOrderId(null)}>
           <div className="modal scale-in" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
@@ -1193,93 +1256,54 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
             </div>
             <div className="modal-body" style={{ textAlign: 'center', padding: '20px 0' }}>
               <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
-                {lang === 'am' ? 'ለዚህ ሻጭ ምን ያህል ኮከብ መስጠት ይፈልጋሉ?' : 'How would you rate this seller?'}
+                {lang === 'am' ? 'ምን ያህል ኮከብ ይሰጣሉ?' : 'How would you rate this seller?'}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
                 {[1, 2, 3, 4, 5].map(star => (
-                  <button
-                    key={star}
-                    onClick={() => setRatingValue(star)}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer', outline: 'none',
-                      transform: ratingValue >= star ? 'scale(1.15)' : 'scale(1)',
-                      transition: 'transform 0.1s ease'
-                    }}
-                  >
-                    <Star
-                      size={36}
-                      fill={ratingValue >= star ? 'var(--gold)' : 'none'}
-                      color={ratingValue >= star ? 'var(--gold)' : 'var(--text-muted)'}
-                    />
+                  <button key={star} onClick={() => setRatingValue(star)} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: ratingValue >= star ? 'scale(1.15)' : 'scale(1)', transition: 'transform 0.1s ease' }}>
+                    <Star size={36} fill={ratingValue >= star ? 'var(--gold)' : 'none'} color={ratingValue >= star ? 'var(--gold)' : 'var(--text-muted)'} />
                   </button>
                 ))}
               </div>
-              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--gold)' }}>
-                {ratingValue} / 5 {lang === 'am' ? 'ኮከቦች' : 'Stars'}
-              </div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--gold)' }}>{ratingValue} / 5</div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setRateOrderId(null)} disabled={actionLoading}>{t.cancel}</button>
               <button className="btn btn-primary" onClick={handleConfirmRate} disabled={actionLoading}>
-                {actionLoading ? (
-                  <>
-                    <span className="btn-spinner" /> {lang === 'am' ? 'በማስገባት ላይ...' : 'Submitting...'}
-                  </>
-                ) : (
-                  lang === 'am' ? 'ደረጃ አስገባ' : 'Submit Rating'
-                )}
+                {actionLoading ? <><span className="btn-spinner" /> {lang === 'am' ? 'በማስገባት...' : 'Submitting...'}</> : (lang === 'am' ? 'አስገባ' : 'Submit Rating')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* File Claim Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          INSURANCE CLAIM MODAL
+      ═══════════════════════════════════════════════════════════════ */}
       {claimOrderId && (
         <div className="modal-overlay" onClick={() => setClaimOrderId(null)}>
           <div className="modal scale-in" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🛡️ {lang === 'am' ? 'የኢንሹራንስ ካሳ ጥያቄ ማቅረቢያ' : 'File Vet Insurance Claim'}</h3>
+              <h3>🛡️ {lang === 'am' ? 'የኢንሹራንስ ካሳ ጥያቄ' : 'File Insurance Claim'}</h3>
               <button className="btn btn-ghost btn-icon" onClick={() => setClaimOrderId(null)} disabled={actionLoading}>✕</button>
             </div>
             <div className="modal-body">
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-                {lang === 'am'
-                  ? 'በእንስሳቱ ላይ የጤና ችግር ከተፈጠረ፣ እባክዎን ዝርዝር መረጃውን ከታች ይግለጹ። አስተዳዳሪዎቻችን ጉዳዩን መርምረው ካሳውን ይፈቅዳሉ።'
-                  : 'If you experienced health issues with the livestock, describe the situation. Our team will review the claim.'}
+                {lang === 'am' ? 'ችግሩን በዝርዝር ይግለጹ። ቡድናችን ይመረምራል።' : 'Describe the issue. Our team will review the claim.'}
               </p>
               <div className="form-group" style={{ marginBottom: 12 }}>
-                <label className="form-label">{lang === 'am' ? 'የትዕዛዝ ቁጥር' : 'Order ID'}</label>
+                <label className="form-label">{lang === 'am' ? 'ትዕዛዝ' : 'Order'}</label>
                 <input className="form-input" value={`#${claimOrderId.slice(-6)}`} disabled />
               </div>
               <div className="form-group">
-                <label className="form-label">{lang === 'am' ? 'የጉዳቱ/ችግሩ ዝርዝር መግለጫ' : 'Description of Issue'}</label>
-                <textarea
-                  className="form-input"
-                  rows={4}
-                  placeholder={lang === 'am' ? 'ችግሩን እዚህ በዝርዝር ይግለጹ...' : 'Describe the health or quality issues in detail...'}
-                  value={claimMessage}
-                  onChange={e => setClaimMessage(e.target.value)}
-                  style={{ resize: 'none', padding: 12 }}
-                  disabled={actionLoading}
-                />
+                <label className="form-label">{lang === 'am' ? 'ዝርዝር' : 'Description'}</label>
+                <textarea className="form-input" rows={4} placeholder={lang === 'am' ? 'ችግሩን ይግለጹ...' : 'Describe the issue...'} value={claimMessage} onChange={e => setClaimMessage(e.target.value)} style={{ resize: 'none', padding: 12 }} disabled={actionLoading} />
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setClaimOrderId(null)} disabled={actionLoading}>{t.cancel}</button>
-              <button
-                className="btn btn-primary"
-                style={{ background: 'linear-gradient(135deg, var(--purple), hsla(270,70%,60%,0.85))', border: 'none' }}
-                onClick={handleConfirmClaim}
-                disabled={actionLoading || !claimMessage.trim()}
-              >
-                {actionLoading ? (
-                  <>
-                    <span className="btn-spinner" /> {lang === 'am' ? 'በማስገባት ላይ...' : 'Submitting...'}
-                  </>
-                ) : (
-                  lang === 'am' ? 'ጥያቄ አስገባ' : 'Submit Claim'
-                )}
+              <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, var(--purple), hsla(270,70%,60%,0.85))', border: 'none' }} onClick={handleConfirmClaim} disabled={actionLoading || !claimMessage.trim()}>
+                {actionLoading ? <><span className="btn-spinner" /> {lang === 'am' ? 'በማስገባት...' : 'Submitting...'}</> : (lang === 'am' ? 'አስገባ' : 'Submit Claim')}
               </button>
             </div>
           </div>

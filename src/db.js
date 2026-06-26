@@ -317,6 +317,24 @@ export const ANIMAL_TYPES = ['hen', 'sheep', 'goat', 'cattle', 'kircha'];
 
 export const NOTIFICATION_TYPES = ['system', 'wallet', 'holiday', 'marketplace', 'security', 'deposit', 'delivery', 'promotion', 'order'];
 
+// ---- Installment / Equb Plans ----
+export const INSTALLMENT_PLANS = [
+  { months: 3, markupPct: 0.03, label: '3 Months', labelAm: '3 ወር' },
+  { months: 6, markupPct: 0.05, label: '6 Months', labelAm: '6 ወር' },
+  { months: 12, markupPct: 0.08, label: '12 Months', labelAm: '12 ወር' },
+];
+
+export const INSTALLMENT_MIN_PRICE = 5000; // Only animals ≥ 5,000 ETB eligible
+
+export function getInstallmentPrice(cashPrice, months) {
+  const plan = INSTALLMENT_PLANS.find(p => p.months === months);
+  if (!plan) return null;
+  const totalPrice = Math.round(cashPrice * (1 + plan.markupPct));
+  const monthlyPayment = Math.round(totalPrice / months);
+  const markup = totalPrice - cashPrice;
+  return { totalPrice, monthlyPayment, markup, markupPct: plan.markupPct, months };
+}
+
 // ---- Amharic translations ----
 export const TRANSLATIONS = {
   en: {
@@ -1314,6 +1332,8 @@ export async function placeOrder(animalId, deliveryOption, deliveryZone, deliver
     deliveryAddress: extra.deliveryAddress || null,
     deliveryDate: extra.deliveryDate || null,
     insuranceAdded: extra.insuranceAdded || false,
+    purchaseType: extra.purchaseType || 'cash',
+    installmentPlan: extra.installmentPlan || null,
   });
   await syncWithBackend();
   return readDB();
