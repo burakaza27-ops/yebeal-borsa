@@ -63,7 +63,15 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
   const animalsList = Array.isArray(animalsRaw) ? animalsRaw : (animalsRaw?.animals || []);
   const animals = animalsList.filter(a => a.isActive && a.isApproved);
   const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
-  const favorites = Array.isArray(favoritesRaw) ? favoritesRaw : [];
+  const favoritesArr = Array.isArray(favoritesRaw) ? favoritesRaw : [];
+
+  // Build a Set of favorite animal IDs from BOTH sources:
+  // 1. fetchFavorites returns full animal objects with .id
+  // 2. fetchAnimals returns animals with .isFavorite boolean flag
+  const favoriteIds = new Set([
+    ...favoritesArr.map(f => f.id || f.animalId).filter(Boolean),
+    ...animals.filter(a => a.isFavorite).map(a => a.id),
+  ]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState(() => ssGet('search', ''));
   const [typeFilter, setTypeFilter] = useState(() => ssGet('typeFilter', 'all'));
@@ -191,7 +199,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
       if (ratingFilter === '4.5+' && a.sellerRating < 4.5) return false;
       if (ratingFilter === '4.7+' && a.sellerRating < 4.7) return false;
       if (certFilter === 'certified' && !a.healthCertificate) return false;
-      if (activeTab === 'favorites' && !favorites.includes(a.id)) return false;
+      if (activeTab === 'favorites' && !favoriteIds.has(a.id)) return false;
       if (dateFilter && new Date(a.availableDate) > new Date(dateFilter)) return false;
       if (search && ![a.breed, a.type, a.description, a.sellerName, a.locationArea]
         .some(f => f.toLowerCase().includes(search.toLowerCase()))) return false;
@@ -386,7 +394,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
           🐑 {t.browse}
         </button>
         <button className={`tab ${activeTab === 'favorites' ? 'active' : ''}`} onClick={() => setActiveTab('favorites')}>
-          ❤️ {t.favorites} ({favorites.length})
+          ❤️ {t.favorites} ({favoriteIds.size})
         </button>
         <button className={`tab ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>
           📦 {t.myOrders} ({orders.length})
@@ -507,7 +515,7 @@ export default function Marketplace({ onRefresh, lang, showToast, user }) {
           ) : (
             <div className="animal-grid">
               {filtered.map((animal, idx) => {
-                const isFav = favorites.includes(animal.id);
+                const isFav = favoriteIds.has(animal.id);
                 const isKircha = animal.type === 'kircha';
                 const canInstall = animal.price >= INSTALLMENT_MIN_PRICE;
                 const defaultInst = canInstall ? getInstallmentPrice(animal.price, 6) : null;
